@@ -34,14 +34,14 @@ logger = logging.getLogger("pyas2")
 @method_decorator(csrf_exempt, name="dispatch")
 class ReceiveAs2Message(View):
     """
-       Class receives AS2 requests from partners.
-       Checks whether its an AS2 message or an MDN and acts accordingly.
+    Class receives AS2 requests from partners.
+    Checks whether its an AS2 message or an MDN and acts accordingly.
     """
 
     @staticmethod
     def find_message(message_id, partner_id):
-        """ Find the message using the message_id  and return its
-         pyas2 version"""
+        """Find the message using the message_id  and return its
+        pyas2 version"""
         message = Message.objects.filter(
             message_id=message_id, partner_id=partner_id.strip()
         ).first()
@@ -50,7 +50,7 @@ class ReceiveAs2Message(View):
 
     @staticmethod
     def check_success_message_exists(message_id, partner_id):
-        """ Check if the message already exists in the system """
+        """Check if the message already exists in the system """
         if settings.ERROR_ON_DUPLICATE:
             return Message.objects.filter(
                 message_id=message_id,
@@ -69,14 +69,14 @@ class ReceiveAs2Message(View):
 
     @staticmethod
     def find_organization(org_id):
-        """ Find the org using the As2 Id and return its pyas2 version"""
+        """Find the org using the As2 Id and return its pyas2 version"""
         org = Organization.objects.filter(as2_name=org_id).first()
         if org:
             return org.as2org
 
     @staticmethod
     def find_partner(partner_id):
-        """ Find the partner using the As2 Id and return its pyas2 version"""
+        """Find the partner using the As2 Id and return its pyas2 version"""
         partner = Partner.objects.filter(as2_name=partner_id).first()
         if partner:
             return partner.as2partner
@@ -192,7 +192,6 @@ class ReceiveAs2Message(View):
             return HttpResponse(_("AS2 message has been received"))
 
     def get(self, request, *args, **kwargs):
-        """"""
         return HttpResponse(
             _("To submit an AS2 message, you must POST the message to this URL")
         )
@@ -266,7 +265,7 @@ class SendAs2Message(FormView):
 
 
 class DownloadFile(View):
-    """ A generic view for downloading files such as payload, certificates..."""
+    """A generic view for downloading files such as payload, certificates..."""
 
     def get(self, request, obj_type, obj_id, *args, **kwargs):
         filename = ""

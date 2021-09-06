@@ -5,6 +5,7 @@ from unittest import mock
 from django.test import Client, override_settings
 from django.test import TestCase
 from pyas2lib import Message as As2Message
+from pyas2lib import Mdn as As2Mdn
 
 from pyas2 import settings
 from pyas2.models import Message
@@ -89,7 +90,7 @@ class AdvancedTestCases(TestCase):
             mdn.payload.delete()
 
     def test_post_send_command(self):
-        """ Test that the command after successful send gets executed."""
+        """Test that the command after successful send gets executed."""
 
         partner = Partner.objects.create(
             name="AS2 Server",
@@ -117,7 +118,7 @@ class AdvancedTestCases(TestCase):
 
     @mock.patch("requests.post")
     def test_post_send_command_async(self, mock_request):
-        """ Test that the command after successful send gets executed with
+        """Test that the command after successful send gets executed with
         asynchronous MDN."""
 
         partner = Partner.objects.create(
@@ -152,7 +153,7 @@ class AdvancedTestCases(TestCase):
         os.remove(touch_file)
 
     def test_post_receive_command(self):
-        """ Test that the command after successful receive gets executed."""
+        """Test that the command after successful receive gets executed."""
         # settings.DATA_DIR = TEST_DIR
         # add the post receive command and save it
         self.partner.cmd_receive = "touch %s/$filename.received" % TEST_DIR
@@ -184,7 +185,7 @@ class AdvancedTestCases(TestCase):
         # settings.DATA_DIR = None
 
     def test_use_received_filename(self):
-        """ Test using the filename of the payload received while saving the file."""
+        """Test using the filename of the payload received while saving the file."""
 
         # add the post receive command and save it
         self.partner.cmd_receive = "touch %s/$filename.received" % TEST_DIR
@@ -500,6 +501,31 @@ class AdvancedTestCases(TestCase):
         self.assertTrue(
             "Failed to verify message signature" in out_message.detailed_status
         )
+
+    def test_missing_message_id(self):
+        # Create the client partner and send the command
+        partner = Partner.objects.create(
+            name="AS2 Server",
+            as2_name="as2server",
+            target_url="http://localhost:8080/pyas2/as2receive",
+            signature="sha1",
+            signature_cert=self.server_crt,
+            encryption="tripledes_192_cbc",
+            encryption_cert=self.server_crt,
+            mdn=True,
+            mdn_mode="ASYNC",
+            mdn_sign="sha1",
+        )
+        out_message = self.build_and_send(partner)
+
+        # Create MDN object without message_id
+        in_message = As2Mdn()
+        in_message.orig_message_id = out_message.message_id
+        in_message.message_id = None
+        mdn_message = Mdn.objects.create_from_as2mdn(in_message, out_message, "R")
+
+        # Check that original message id was used to store mdn_id
+        self.assertEqual(mdn_message.mdn_id, out_message.message_id)
 
     @mock.patch("requests.post")
     def build_and_send(self, partner, mock_request, smudge=False):

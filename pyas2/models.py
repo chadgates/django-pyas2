@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import models
 from django.utils import timezone
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 
 from pyas2lib import (
     Mdn as As2Mdn,
@@ -109,7 +109,7 @@ class Organization(models.Model):
 
     @property
     def as2org(self):
-        """ Returns an object of pyas2lib's Organization class"""
+        """Returns an object of pyas2lib's Organization class"""
         params = {"as2_name": self.as2_name, "mdn_url": settings.MDN_URL}
         if self.signature_key:
             params["sign_key"] = bytes(self.signature_key.key)
@@ -262,7 +262,7 @@ class Partner(models.Model):
 
     @property
     def as2partner(self):
-        """ Returns an object of pyas2lib's Partner class"""
+        """Returns an object of pyas2lib's Partner class"""
         params = {
             "as2_name": self.as2_name,
             "compress": self.compress,
@@ -414,7 +414,7 @@ class Message(models.Model):
 
     @property
     def as2message(self):
-        """ Returns an object of pyas2lib's Message class"""
+        """Returns an object of pyas2lib's Message class"""
         if self.direction == "IN":
             as2m = As2Message(
                 sender=self.partner.as2partner, receiver=self.organization.as2org
@@ -431,7 +431,7 @@ class Message(models.Model):
 
     @property
     def status_icon(self):
-        """ Return the icon for message status """
+        """Return the icon for message status"""
         if self.status == "S":
             return "admin/img/icon-yes.svg"
         elif self.status == "E":
@@ -442,7 +442,7 @@ class Message(models.Model):
             return "admin/img/icon-unknown.svg"
 
     def send_message(self, header, payload):
-        """ Send the message to the partner"""
+        """Send the message to the partner"""
         logger.info(
             f'Sending message {self.message_id} from organization "{self.organization}" '
             f'to partner "{self.partner}".'
@@ -531,10 +531,21 @@ class MdnManager(models.Manager):
     def create_from_as2mdn(self, as2mdn, message, status, return_url=None):
         """Create the MDN from the pyas2lib's MDN object"""
         signed = True if as2mdn.digest_alg else False
+
+        # Check for message-id in MDN.
+        if as2mdn.message_id is None:
+            message_id = as2mdn.orig_message_id
+            logger.warning(
+                f"Received MDN response without a message-id. Using original "
+                f"message-id as ID instead: {message_id}"
+            )
+        else:
+            message_id = as2mdn.message_id
+
         mdn, _ = self.update_or_create(
             message=message,
             defaults=dict(
-                mdn_id=as2mdn.message_id if as2mdn.message_id is not None else as2mdn.orig_message_id,
+                mdn_id=message_id,
                 status=status,
                 signed=signed,
                 return_url=return_url,
@@ -584,7 +595,7 @@ class Mdn(models.Model):
         return self.mdn_id
 
     def send_async_mdn(self):
-        """ Send the asynchronous MDN to the partner"""
+        """Send the asynchronous MDN to the partner"""
 
         # convert the mdn headers to dictionary
         headers = HeaderParser().parsestr(self.headers.read().decode())
