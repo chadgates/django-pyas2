@@ -14,12 +14,15 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.generic import FormView
 from pyas2lib import Message as As2Message
 from pyas2lib import Mdn as As2Mdn
+from pyas2lib.exceptions import DecryptionError
 from pyas2lib.exceptions import DuplicateDocument
+from pyas2lib.exceptions import IntegrityError
 
 from pyas2.models import Mdn
 from pyas2.models import Message
 from pyas2.models import Organization
 from pyas2.models import Partner
+from pyas2.models import Partnership
 from pyas2.models import PrivateKey
 from pyas2.models import PublicCertificate
 from pyas2.utils import run_post_receive
@@ -66,6 +69,30 @@ class ReceiveAs2Message(View):
         partner = Partner.objects.filter(as2_name=partner_id).first()
         if partner:
             return partner.as2partner
+
+    @staticmethod
+    def find_partnership(org_id, partner_id):
+        partnership = Partnership.objects.filter(
+            partner__as2_name=partner_id, organization__as2_name=org_id
+        ).first()
+        if partnership:
+            return partnership.as2org, partnership.partner.as2partner
+        else:
+            org = Organization.objects.filter(as2_name=org_id).first()
+            partner = Partner.objects.filter(as2_name=partner_id).first()
+            if org and partner:
+                partnership = Partnership(partner=partner, organization=org, keys="P")
+                partnership.save()
+                return org.as2org, partner.as2partner
+
+    @staticmethod
+    def find_alternative(org_id, partner_id):
+        partnership = Partnership.objects.filter(
+            partner__as2_name=partner_id, organization__as2_name=org_id
+        ).first()
+        if partnership:
+            partnership.swap_keys()
+            return partnership.as2org, partnership.partner.as2partner
 
     @xframe_options_exempt
     @csrf_exempt
@@ -126,7 +153,19 @@ class ReceiveAs2Message(View):
                 self.find_organization,
                 self.find_partner,
                 self.check_message_exists,
+                self.find_partnership,
             )
+
+            if isinstance(exception[0], DecryptionError) or isinstance(
+                exception[0], IntegrityError
+            ):
+                status, exception, as2mdn = as2message.parse(
+                    request_body,
+                    self.find_organization,
+                    self.find_partner,
+                    self.check_message_exists,
+                    self.find_alternative,
+                )
 
             logger.info(
                 f'Received an AS2 message with id {as2message.headers.get("message-id")} for '

@@ -107,6 +107,22 @@ class Organization(models.Model):
         ),
     )
 
+    encryption_key_alt = models.ForeignKey(
+        PrivateKey,
+        related_name="org_ea",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL
+    )
+
+    signature_key_alt = models.ForeignKey(
+        PrivateKey,
+        related_name="org_sa",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+
     @property
     def as2org(self):
         """Returns an object of pyas2lib's Organization class"""
@@ -123,6 +139,42 @@ class Organization(models.Model):
             params["mdn_confirm_text"] = self.confirmation_message
 
         return As2Organization(**params)
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def as2orgalt(self):
+        """Returns an object of pyas2lib's Organization class"""
+        params = {"as2_name": self.as2_name, "mdn_url": settings.MDN_URL}
+        if self.signature_key:
+            params["sign_key"] = bytes(self.signature_key_alt.key)
+            params["sign_key_pass"] = self.signature_key_alt.key_pass
+
+        if self.encryption_key:
+            params["decrypt_key"] = bytes(self.encryption_key_alt.key)
+            params["decrypt_key_pass"] = self.encryption_key_alt.key_pass
+
+        if self.confirmation_message:
+            params["mdn_confirm_text"] = self.confirmation_message
+
+        return As2Organization(**params)
+
+    def swap_primary_alt(self):
+        encrypt_primary = self.encryption_key
+        signature_primary = self.signature_key
+        encrypt_alt = self.encryption_key_alt
+        signature_alt = self.signature_key_alt
+
+        self.encryption_key = encrypt_alt
+        self.signature_key = signature_alt
+        self.encryption_key_alt = encrypt_primary
+        self.signature_key_alt_id = signature_primary
+        self.save()
+
+        for partnership in Partnership.objects.filter(organization=self):
+            partnership.swap_keys()
+            partnership.save()
 
     def __str__(self):
         return self.name
@@ -420,9 +472,18 @@ class Message(models.Model):
                 sender=self.partner.as2partner, receiver=self.organization.as2org
             )
         else:
-            as2m = As2Message(
-                sender=self.organization.as2org, receiver=self.partner.as2partner
-            )
+            partnership = Partnership.objects.filter(
+                organization=self.organization, partner=self.partner
+            ).first()
+            if partnership:
+                as2m = As2Message(
+                    sender=partnership.organization.as2org,
+                    receiver=partnership.partner.as2partner,
+                )
+            else:
+                as2m = As2Message(
+                    sender=self.organization.as2org, receiver=self.partner.as2partner
+                )
 
         as2m.message_id = self.message_id
         as2m.mic = self.mic
@@ -612,3 +673,37 @@ class Mdn(models.Model):
         # Update the status of the MDN
         self.status = "S"
         self.save()
+
+
+class Partnership(models.Model):
+    KEYSET_CHOICES = (
+        ("P", _("Primary")),
+        ("A", _("Alternate")),
+    )
+
+    partner = models.ForeignKey(
+        Partner, null=False, blank=False, on_delete=models.CASCADE
+    )
+
+    organization = models.ForeignKey(
+        Organization, null=False, blank=False, on_delete=models.CASCADE
+    )
+
+    keys = models.CharField(
+        max_length=2, choices=KEYSET_CHOICES, blank=False, null=False
+    )
+
+    def swap_keys(self):
+        if self.keys == "P":
+            self.keys = "A"
+
+        else:
+            self.keys = "P"
+        self.save()
+
+    @property
+    def as2org(self):
+        if self.keys == "P":
+            return self.organization.as2org
+        else:
+            return self.organization.as2orgalt
