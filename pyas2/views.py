@@ -57,50 +57,14 @@ class ReceiveAs2Message(View):
         ).exists()
 
     @staticmethod
-    def find_organization(org_id):
-        """Find the org using the As2 Id and return its pyas2 version"""
-        org = Organization.objects.filter(as2_name=org_id).first()
-        if org:
-            return org.as2org
-
-    @staticmethod
-    def find_partner(partner_id):
-        """Find the partner using the As2 Id and return its pyas2 version"""
-        partner = Partner.objects.filter(as2_name=partner_id).first()
-        if partner:
-            return partner.as2partner
-
-    @staticmethod
     def find_partnership(org_id, partner_id):
-        partnership = Partnership.objects.filter(
-            partner__as2_name=partner_id, organization__as2_name=org_id
-        ).first()
-        if partnership:
-            return partnership.as2org, partnership.partner.as2partner
-        else:
-            org = Organization.objects.filter(as2_name=org_id).first()
-            partner = Partner.objects.filter(as2_name=partner_id).first()
-            if org and partner:
-                partnership = Partnership(partner=partner, organization=org, keys="P")
-                partnership.save()
-                return org.as2org, partner.as2partner
-            elif org:
-                return org.as2org, None
-            elif partner:
-                return None, partner.as2partner
-            else:
-                return None, None
+        org, partner = Partnership.objects.get_as2_org_partner(as2_name_org=org_id, as2_name_partner=partner_id)
+        return org.as2org if org else None, partner.as2partner if partner else None
 
     @staticmethod
-    def find_alternative(org_id, partner_id):
-        partnership = Partnership.objects.filter(
-            partner__as2_name=partner_id, organization__as2_name=org_id
-        ).first()
-        if partnership:
-            if partnership.swap_keys():
-                return partnership.as2org, partnership.partner.as2partner
-            else:
-                return ReceiveAs2Message.find_organization(org_id), ReceiveAs2Message.find_partner(partner_id)
+    def find_alternative_partnership(org_id, partner_id):
+        org, partner = Partnership.objects.get_as2_org_partner_swap(as2_name_org=org_id, as2_name_partner=partner_id)
+        return org.as2org if org else None, partner.as2partner if partner else None
 
     @xframe_options_exempt
     @csrf_exempt
@@ -158,10 +122,8 @@ class ReceiveAs2Message(View):
             as2message = As2Message()
             status, exception, as2mdn = as2message.parse(
                 request_body,
-                self.find_organization,
-                self.find_partner,
-                self.check_message_exists,
-                self.find_partnership,
+                find_org_partner_cb=self.find_partnership,
+                find_message_cb=self.check_message_exists,
             )
 
             if isinstance(exception[0], DecryptionError) or isinstance(
@@ -169,10 +131,8 @@ class ReceiveAs2Message(View):
             ):
                 status, exception, as2mdn = as2message.parse(
                     request_body,
-                    self.find_organization,
-                    self.find_partner,
-                    self.check_message_exists,
-                    self.find_alternative,
+                    find_message_cb=self.check_message_exists,
+                    find_org_partner_cb=self.find_alternative_partnership,
                 )
 
             logger.info(
@@ -254,9 +214,11 @@ class SendAs2Message(FormView):
     def form_valid(self, form):
         # Send the file to the partner
         payload = form.cleaned_data["file"].read()
+        org, partner = Partnership.objects.get_as2_org_partner(form.cleaned_data["organization"].as2_name,
+                                                               form.cleaned_data["partner"].as2_name)
         as2message = As2Message(
-            sender=form.cleaned_data["organization"].as2org,
-            receiver=form.cleaned_data["partner"].as2partner,
+            sender=org.as2org,
+            receiver=partner.as2partner,
         )
         logger.debug(
             f'Building message from {form.cleaned_data["file"].name} to send to partner '
