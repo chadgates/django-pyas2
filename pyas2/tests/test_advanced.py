@@ -12,6 +12,7 @@ from pyas2.models import Message
 from pyas2.models import Mdn
 from pyas2.models import Organization
 from pyas2.models import Partner
+from pyas2.models import Partnership
 from pyas2.models import PrivateKey
 from pyas2.models import PublicCertificate
 from pyas2.tests.test_basic import SendMessageMock
@@ -38,6 +39,13 @@ class AdvancedTestCases(TestCase):
 
         with open(os.path.join(TEST_DIR, "client_public.pem"), "rb") as fp:
             cls.client_crt = PublicCertificate.objects.create(certificate=fp.read())
+
+        with open(os.path.join(TEST_DIR, "server_alt_private.pem"), "rb") as fp:
+            cls.server_alt_key = PrivateKey.objects.create(key=fp.read(), key_pass="test")
+
+        with open(os.path.join(TEST_DIR, "server_alt_public.pem"), "rb") as fp:
+            cls.server_alt_crt = PublicCertificate.objects.create(certificate=fp.read())
+
 
     def setUp(self):
 
@@ -66,6 +74,15 @@ class AdvancedTestCases(TestCase):
             signature_key=self.client_key,
         )
 
+        # Setup an organisation with alternate certificate/keys
+        self.alt_organization = Organization.objects.create(
+            name="AS2 Server Alt",
+            as2_name="as2serveralt",
+            encryption_key=self.server_key,
+            signature_key=self.server_key,
+            encryption_key_alt=self.server_alt_key,
+            signature_key_alt=self.server_alt_key,
+        )
         # Initialise the payload i.e. the file to be transmitted
         with open(os.path.join(TEST_DIR, "testmessage.edi"), "rb") as fp:
             self.payload = fp.read()
@@ -73,7 +90,7 @@ class AdvancedTestCases(TestCase):
     @classmethod
     def tearDownClass(cls):
         # remove all files in the inbox folders
-        inbox = os.path.join("messages", "as2server", "inbox", "as2client")
+        inbox = os.path.join("messages", "as2server", "inbox", "as2client", "as2serveralt")
         try:
             files = os.listdir(inbox)
         except OSError:
@@ -88,6 +105,8 @@ class AdvancedTestCases(TestCase):
         for mdn in Mdn.objects.all():
             mdn.headers.delete()
             mdn.payload.delete()
+        for partnership in Partnership.objects.all():
+            partnership.delete()
 
     def test_post_send_command(self):
         """Test that the command after successful send gets executed."""

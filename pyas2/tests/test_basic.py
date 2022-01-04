@@ -11,6 +11,7 @@ from pyas2.models import (
     PublicCertificate,
     Organization,
     Partner,
+    Partnership,
     Message,
     Mdn,
 )
@@ -86,9 +87,11 @@ class BasicServerClientTestCase(TestCase):
         for mdn in Mdn.objects.all():
             mdn.headers.delete()
             mdn.payload.delete()
+        for partnership in Partnership.objects.all():
+            partnership.delete()
 
     def testEndpoint(self):
-        """Test if the as2 reveive endpoint is active"""
+        """Test if the as2 receive endpoint is active"""
 
         response = self.client.get("/pyas2/as2receive")
         self.assertEqual(response.status_code, 200)
