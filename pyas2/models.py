@@ -694,12 +694,18 @@ class Partnership(models.Model):
     )
 
     def swap_keys(self):
-        if self.keys == "P":
-            self.keys = "A"
-
+        initial_key = self.keys
+        if initial_key == "P":
+            if self.organization.encryption_key_alt and self.organization.signature_key_alt:
+                self.keys = "A"
         else:
-            self.keys = "P"
-        self.save()
+            if self.organization.encryption_key and self.organization.signature_key:
+                self.keys = "P"
+        if initial_key != self.keys:
+            self.save()
+            return True
+        else:
+            return False
 
     @property
     def as2org(self):

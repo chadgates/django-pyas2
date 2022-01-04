@@ -84,6 +84,12 @@ class ReceiveAs2Message(View):
                 partnership = Partnership(partner=partner, organization=org, keys="P")
                 partnership.save()
                 return org.as2org, partner.as2partner
+            elif org:
+                return org.as2org, None
+            elif partner:
+                return None, partner.as2partner
+            else:
+                return None, None
 
     @staticmethod
     def find_alternative(org_id, partner_id):
@@ -91,8 +97,10 @@ class ReceiveAs2Message(View):
             partner__as2_name=partner_id, organization__as2_name=org_id
         ).first()
         if partnership:
-            partnership.swap_keys()
-            return partnership.as2org, partnership.partner.as2partner
+            if partnership.swap_keys():
+                return partnership.as2org, partnership.partner.as2partner
+            else:
+                return ReceiveAs2Message.find_organization(org_id), ReceiveAs2Message.find_partner(partner_id)
 
     @xframe_options_exempt
     @csrf_exempt

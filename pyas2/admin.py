@@ -10,6 +10,7 @@ from pyas2.models import Mdn
 from pyas2.models import Message
 from pyas2.models import Organization
 from pyas2.models import Partner
+from pyas2.models import Partnership
 from pyas2.models import PrivateKey
 from pyas2.models import PublicCertificate
 from pyas2.forms import PartnerForm
@@ -190,3 +191,9 @@ class MdnAdmin(admin.ModelAdmin):
     )
     list_display = ("mdn_id", "message", "timestamp", "status")
     list_filter = ("status",)
+
+
+@admin.register(Partnership)
+class PartnershipAdmin(admin.ModelAdmin):
+    list_display = ["organization", "partner", "keys"]
+    list_filter = ("organization", "partner")
