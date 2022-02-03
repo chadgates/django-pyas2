@@ -112,6 +112,9 @@ class ReceiveAs2Message(View):
         status, detailed_status = as2mdn.parse(request_body, self.find_message)
 
         if not detailed_status == "mdn-not-found":
+            if detailed_status == "original-message-not-found":
+                return HttpResponse(_("AS2 ASYNC MDN has been received for unknown message."))
+
             message = Message.objects.get(
                 message_id=as2mdn.orig_message_id, direction="OUT"
             )
