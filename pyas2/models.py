@@ -112,7 +112,7 @@ class Organization(models.Model):
         related_name="org_ea",
         null=True,
         blank=True,
-        on_delete=models.SET_NULL
+        on_delete=models.SET_NULL,
     )
 
     signature_key_alt = models.ForeignKey(
@@ -142,16 +142,25 @@ class Organization(models.Model):
 
     @property
     def has_primary_and_alt_keys(self):
-        return any([
-            any([self.signature_key and self.signature_key_alt,
-                 not self.signature_key and not self.signature_key_alt]),
-            any([self.encryption_key and self.encryption_key_alt,
-                 not self.encryption_key and not self.encryption_key_alt]),
-        ])
+        return any(
+            [
+                any(
+                    [
+                        self.signature_key and self.signature_key_alt,
+                        not self.signature_key and not self.signature_key_alt,
+                    ]
+                ),
+                any(
+                    [
+                        self.encryption_key and self.encryption_key_alt,
+                        not self.encryption_key and not self.encryption_key_alt,
+                    ]
+                ),
+            ]
+        )
 
     def __str__(self):
         return self.name
-
 
     @property
     def as2orgalt(self):
@@ -171,8 +180,14 @@ class Organization(models.Model):
         return As2Organization(**params)
 
     def swap_primary_alt(self):
-        self.encryption_key, self.encryption_key_alt = self.encryption_key_alt, self.encryption_key
-        self.signature_key, self.signature_key_alt = self.signature_key_alt, self.signature_key
+        self.encryption_key, self.encryption_key_alt = (
+            self.encryption_key_alt,
+            self.encryption_key,
+        )
+        self.signature_key, self.signature_key_alt = (
+            self.signature_key_alt,
+            self.signature_key,
+        )
         self.save()
 
         for partnership in Partnership.objects.filter(organization=self):
@@ -468,15 +483,15 @@ class Message(models.Model):
     def as2message(self):
         """Returns an object of pyas2lib's Message class"""
         if self.direction == "IN":
-            org, partner = Partnership.objects.get_as2_org_partner(self.organization.as2_name, self.partner.as2_name)
-            as2m = As2Message(
-                sender=partner.as2partner, receiver=org.as2org
+            org, partner = Partnership.objects.get_as2_org_partner(
+                self.organization.as2_name, self.partner.as2_name
             )
+            as2m = As2Message(sender=partner.as2partner, receiver=org.as2org)
         else:
-            org, partner = Partnership.objects.get_as2_org_partner(self.organization.as2_name, self.partner.as2_name)
-            as2m = As2Message(
-                sender=org.as2org, receiver=partner.as2partner
+            org, partner = Partnership.objects.get_as2_org_partner(
+                self.organization.as2_name, self.partner.as2_name
             )
+            as2m = As2Message(sender=org.as2org, receiver=partner.as2partner)
 
         as2m.message_id = self.message_id
         as2m.mic = self.mic
@@ -674,7 +689,8 @@ class PartnershipManager(models.Manager):
         partner = Partner.objects.filter(as2_name=as2_name_partner).first()
         if org and partner:
             partnership = Partnership.objects.filter(
-                partner=partner, organization=org).first()
+                partner=partner, organization=org
+            ).first()
             if partnership:
                 org = partnership
         return org, partner
@@ -684,11 +700,10 @@ class PartnershipManager(models.Manager):
         partner = Partner.objects.filter(as2_name__exact=as2_name_partner).first()
         if org and partner:
             partnership = Partnership.objects.filter(
-                partner=partner, organization=org).first()
+                partner=partner, organization=org
+            ).first()
             if partnership:
-                if partnership.swap_org_key():
-                    if partnership.organization_auto_swap:
-                        partnership.save()
+                if partnership.swap_org_key(persist=partnership.organization_auto_swap):
                     org = partnership
         return org, partner
 
@@ -714,17 +729,16 @@ class Partnership(models.Model):
         max_length=2, choices=KEYSET_CHOICES, blank=False, null=False, default=PRIMARY
     )
 
-    organization_auto_swap = models.BooleanField(
-        default=True
-    )
+    organization_auto_swap = models.BooleanField(default=True)
 
-    def swap_org_key(self):
+    def swap_org_key(self, persist=False):
         if self.organization.has_primary_and_alt_keys:
             if self.organization_key == self.PRIMARY:
                 self.organization_key = self.ALTERNATE
             else:
                 self.organization_key = self.PRIMARY
-            self.save()
+            if persist:
+                self.save()
             return True
         else:
             return False
