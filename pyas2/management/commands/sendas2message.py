@@ -35,10 +35,14 @@ class Command(BaseCommand):
 
         # Check if organization and partner exists
 
-        org, partner = Partnership.objects.get_as2_org_partner(options["org_as2name"], options["partner_as2name"])
+        org, partner = Partnership.objects.get_as2_org_partner(
+            options["org_as2name"], options["partner_as2name"]
+        )
 
         if not org:
-            raise CommandError(f'Organization "{options["org_as2name"]}" does not exist')
+            raise CommandError(
+                f'Organization "{options["org_as2name"]}" does not exist'
+            )
 
         if not partner:
             raise CommandError(f'Partner "{options["partner_as2name"]}" does not exist')

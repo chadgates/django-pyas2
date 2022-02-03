@@ -66,8 +66,9 @@ class Command(BaseCommand):
 
         # Build and resend the AS2 message
 
-        org, partner = Partnership.objects.get_as2_org_partner(retry_msg.organization.as2_name,
-                                                               retry_msg.partner.as2_name)
+        org, partner = Partnership.objects.get_as2_org_partner(
+            retry_msg.organization.as2_name, retry_msg.partner.as2_name
+        )
 
         as2message = AS2Message(
             sender=org.as2org,

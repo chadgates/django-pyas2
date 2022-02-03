@@ -195,5 +195,10 @@ class MdnAdmin(admin.ModelAdmin):
 
 @admin.register(Partnership)
 class PartnershipAdmin(admin.ModelAdmin):
-    list_display = ["organization", "partner", "organization_key", "organization_auto_swap"]
+    list_display = [
+        "organization",
+        "partner",
+        "organization_key",
+        "organization_auto_swap",
+    ]
     list_filter = ("organization", "partner")

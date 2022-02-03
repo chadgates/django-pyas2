@@ -58,12 +58,16 @@ class ReceiveAs2Message(View):
 
     @staticmethod
     def find_partnership(org_id, partner_id):
-        org, partner = Partnership.objects.get_as2_org_partner(as2_name_org=org_id, as2_name_partner=partner_id)
+        org, partner = Partnership.objects.get_as2_org_partner(
+            as2_name_org=org_id, as2_name_partner=partner_id
+        )
         return org.as2org if org else None, partner.as2partner if partner else None
 
     @staticmethod
     def find_alternative_partnership(org_id, partner_id):
-        org, partner = Partnership.objects.get_as2_org_partner_swap(as2_name_org=org_id, as2_name_partner=partner_id)
+        org, partner = Partnership.objects.get_as2_org_partner_swap(
+            as2_name_org=org_id, as2_name_partner=partner_id
+        )
         return org.as2org if org else None, partner.as2partner if partner else None
 
     @xframe_options_exempt
@@ -214,8 +218,10 @@ class SendAs2Message(FormView):
     def form_valid(self, form):
         # Send the file to the partner
         payload = form.cleaned_data["file"].read()
-        org, partner = Partnership.objects.get_as2_org_partner(form.cleaned_data["organization"].as2_name,
-                                                               form.cleaned_data["partner"].as2_name)
+        org, partner = Partnership.objects.get_as2_org_partner(
+            form.cleaned_data["organization"].as2_name,
+            form.cleaned_data["partner"].as2_name,
+        )
         as2message = As2Message(
             sender=org.as2org,
             receiver=partner.as2partner,
