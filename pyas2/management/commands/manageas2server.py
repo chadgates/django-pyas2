@@ -7,7 +7,7 @@ from django.utils import timezone
 from pyas2lib import Message as AS2Message
 
 from pyas2 import settings
-from pyas2.models import Message, Mdn
+from pyas2.models import Message, Mdn, Partnership
 
 
 class Command(BaseCommand):
@@ -65,9 +65,14 @@ class Command(BaseCommand):
         self.stdout.write("Retry send the message with ID %s" % retry_msg.message_id)
 
         # Build and resend the AS2 message
+
+        org, partner = Partnership.objects.get_as2_org_partner(
+            retry_msg.organization.as2_name, retry_msg.partner.as2_name
+        )
+
         as2message = AS2Message(
-            sender=retry_msg.organization.as2org,
-            receiver=retry_msg.partner.as2partner,
+            sender=org.as2org,
+            receiver=partner.as2partner,
         )
         as2message.build(
             retry_msg.payload.read(),

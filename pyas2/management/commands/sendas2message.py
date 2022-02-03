@@ -9,6 +9,7 @@ from pyas2lib import Message as AS2Message
 from pyas2.models import Message
 from pyas2.models import Organization
 from pyas2.models import Partner
+from pyas2.models import Partnership
 
 logger = logging.getLogger("pyas2")
 
@@ -33,15 +34,17 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
 
         # Check if organization and partner exists
-        try:
-            org = Organization.objects.get(as2_name=options["org_as2name"])
-        except Organization.DoesNotExist:
+
+        org, partner = Partnership.objects.get_as2_org_partner(
+            options["org_as2name"], options["partner_as2name"]
+        )
+
+        if not org:
             raise CommandError(
                 f'Organization "{options["org_as2name"]}" does not exist'
             )
-        try:
-            partner = Partner.objects.get(as2_name=options["partner_as2name"])
-        except Partner.DoesNotExist:
+
+        if not partner:
             raise CommandError(f'Partner "{options["partner_as2name"]}" does not exist')
 
         # Check if file exists
@@ -54,6 +57,7 @@ class Command(BaseCommand):
         original_filename = os.path.basename(options["path_to_payload"])
         with default_storage.open(options["path_to_payload"], "rb") as in_file:
             payload = in_file.read()
+
             as2message = AS2Message(sender=org.as2org, receiver=partner.as2partner)
             as2message.build(
                 payload,

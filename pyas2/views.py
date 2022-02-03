@@ -15,12 +15,15 @@ from django.views.generic import FormView
 from django.utils.crypto import get_random_string
 from pyas2lib import Message as As2Message
 from pyas2lib import Mdn as As2Mdn
+from pyas2lib.exceptions import DecryptionError
 from pyas2lib.exceptions import DuplicateDocument
+from pyas2lib.exceptions import IntegrityError
 
 from pyas2.models import Mdn
 from pyas2.models import Message
 from pyas2.models import Organization
 from pyas2.models import Partner
+from pyas2.models import Partnership
 from pyas2.models import PrivateKey
 from pyas2.models import PublicCertificate
 from pyas2.utils import run_post_receive
@@ -68,18 +71,18 @@ class ReceiveAs2Message(View):
         ).exists()
 
     @staticmethod
-    def find_organization(org_id):
-        """Find the org using the As2 Id and return its pyas2 version"""
-        org = Organization.objects.filter(as2_name=org_id).first()
-        if org:
-            return org.as2org
+    def find_partnership(org_id, partner_id):
+        org, partner = Partnership.objects.get_as2_org_partner(
+            as2_name_org=org_id, as2_name_partner=partner_id
+        )
+        return org.as2org if org else None, partner.as2partner if partner else None
 
     @staticmethod
-    def find_partner(partner_id):
-        """Find the partner using the As2 Id and return its pyas2 version"""
-        partner = Partner.objects.filter(as2_name=partner_id).first()
-        if partner:
-            return partner.as2partner
+    def find_alternative_partnership(org_id, partner_id):
+        org, partner = Partnership.objects.get_as2_org_partner_swap(
+            as2_name_org=org_id, as2_name_partner=partner_id
+        )
+        return org.as2org if org else None, partner.as2partner if partner else None
 
     @xframe_options_exempt
     @csrf_exempt
@@ -137,10 +140,18 @@ class ReceiveAs2Message(View):
             as2message = As2Message()
             status, exception, as2mdn = as2message.parse(
                 request_body,
-                self.find_organization,
-                self.find_partner,
-                self.check_success_message_exists,
+                find_org_partner_cb=self.find_partnership,
+                find_message_cb=self.check_success_message_exists,
             )
+
+            if isinstance(exception[0], DecryptionError) or isinstance(
+                exception[0], IntegrityError
+            ):
+                status, exception, as2mdn = as2message.parse(
+                    request_body,
+                    find_org_partner_cb=self.find_alternative_partnership,
+                    find_message_cb=self.check_success_message_exists,
+                )
 
             logger.info(
                 f'Received an AS2 message with id {as2message.headers.get("message-id")} for '
@@ -227,9 +238,13 @@ class SendAs2Message(FormView):
     def form_valid(self, form):
         # Send the file to the partner
         payload = form.cleaned_data["file"].read()
+        org, partner = Partnership.objects.get_as2_org_partner(
+            form.cleaned_data["organization"].as2_name,
+            form.cleaned_data["partner"].as2_name,
+        )
         as2message = As2Message(
-            sender=form.cleaned_data["organization"].as2org,
-            receiver=form.cleaned_data["partner"].as2partner,
+            sender=org.as2org,
+            receiver=partner.as2partner,
         )
         logger.debug(
             f'Building message from {form.cleaned_data["file"].name} to send to partner '
