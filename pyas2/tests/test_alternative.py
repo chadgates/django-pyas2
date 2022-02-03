@@ -18,7 +18,7 @@ from pyas2.tests.test_basic import SendMessageMock
 from pyas2.tests import TEST_DIR
 
 
-class AdvancedTestCases(TestCase):
+class AlternativeCertTestCases(TestCase):
     """Test cases dealing with handling of failures and other features"""
 
     @classmethod
@@ -252,11 +252,3 @@ class AdvancedTestCases(TestCase):
         )
 
         return out_message
-
-
-@override_settings(PYAS2={"DATA_DIR": TEST_DIR})
-def test_setting_data_directory():
-    """Test that the data directory gets set correctly."""
-    assert settings.DATA_DIR is None
-    importlib.reload(settings)
-    assert settings.DATA_DIR is TEST_DIR
