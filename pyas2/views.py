@@ -171,7 +171,7 @@ class ReceiveAs2Message(View):
                 not settings.ERROR_ON_DUPLICATE
                 and self.check_same_message_exists(
                     message_id=as2message.message_id,
-                    partner_id=as2message.sender.as2_name,
+                    partner_id=as2message.headers.get("as2-from"),
                 )
             ):
                 as2message.message_id += "_duplicate_" + get_random_string(5)
