@@ -751,3 +751,11 @@ class Partnership(models.Model):
             return self.organization.as2orgalt
 
     objects = PartnershipManager()
+
+    @property
+    def email_address(self):
+        return self.organization.email_address
+
+    class Meta:
+        unique_together = ("organization", "partner")
+        ordering = ["organization", "partner"]
