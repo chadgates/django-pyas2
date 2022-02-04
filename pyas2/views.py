@@ -113,6 +113,10 @@ class ReceiveAs2Message(View):
 
         if not detailed_status == "mdn-not-found":
             if detailed_status == "original-message-not-found":
+                logger.warning(
+                    f"Asynchronous MDN received, but referenced AS2 message {as2mdn.message_id} "
+                    f"could not be found."
+                )
                 return HttpResponse(_("AS2 ASYNC MDN has been received for unknown message."))
 
             message = Message.objects.get(
