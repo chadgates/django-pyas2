@@ -99,7 +99,7 @@ class Command(BaseCommand):
             # received from partners fetch all the pending asynchronous
             # MDN objects
             self.stdout.write("Sending all pending asynchronous MDNs")
-            in_pending_mdns = Mdn.objects.filter(status="P")
+            in_pending_mdns = Mdn.objects.filter(status="P", payload__isnull=False)
 
             for pending_mdn in in_pending_mdns:
                 # Parse the MDN headers from text
