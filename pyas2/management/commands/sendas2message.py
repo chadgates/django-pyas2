@@ -15,6 +15,8 @@ logger = logging.getLogger("pyas2")
 
 
 class Command(BaseCommand):
+    """Command to send an AS2 message."""
+
     help = "Send an as2 message to your trading partner"
     args = "<organization_as2name partner_as2name path_to_payload>"
 
@@ -57,7 +59,6 @@ class Command(BaseCommand):
         original_filename = os.path.basename(options["path_to_payload"])
         with default_storage.open(options["path_to_payload"], "rb") as in_file:
             payload = in_file.read()
-
             as2message = AS2Message(sender=org.as2org, receiver=partner.as2partner)
             as2message.build(
                 payload,

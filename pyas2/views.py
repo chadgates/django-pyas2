@@ -43,13 +43,13 @@ class ReceiveAs2Message(View):
 
     @staticmethod
     def find_message(message_id, partner_id):
-        """Find the message using the message_id  and return its
-        pyas2 version"""
+        """Find the message using the message_id  and return its pyas2 type"""
         message = Message.objects.filter(
             message_id=message_id, partner_id=partner_id.strip()
         ).first()
         if message:
             return message.as2message
+        return None
 
     @staticmethod
     def check_success_message_exists(message_id, partner_id):
@@ -87,7 +87,7 @@ class ReceiveAs2Message(View):
     @xframe_options_exempt
     @csrf_exempt
     def post(self, request, *args, **kwargs):
-
+        """Handle the post message received by the AS2 server."""
         # extract the  headers from the http request
         as2headers = ""
         for key in request.META:
@@ -210,17 +210,22 @@ class ReceiveAs2Message(View):
             return HttpResponse(_("AS2 message has been received"))
 
     def get(self, request, *args, **kwargs):
+        """Handle the GET call made to the AS2 server post endpoint."""
         return HttpResponse(
             _("To submit an AS2 message, you must POST the message to this URL")
         )
 
     def options(self, request, *args, **kwargs):
+        """Handle the OPTIONS call made to the AS2 server post endpoint."""
         response = HttpResponse()
         response["allow"] = ",".join(["POST", "GET"])
         return response
 
 
 class SendAs2Message(FormView):
+    """View for sending AS2 messages to a partner."""
+
+    # pylint: disable=W0212
     template_name = "pyas2/send_as2_message.html"
     form_class = SendAs2MessageForm
     success_url = reverse_lazy(
@@ -228,7 +233,7 @@ class SendAs2Message(FormView):
     )
 
     def get_context_data(self, **kwargs):
-        context = super(SendAs2Message, self).get_context_data(**kwargs)
+        context = super().get_context_data(**kwargs)
         context.update(
             {
                 "opts": Partner._meta,
@@ -250,8 +255,8 @@ class SendAs2Message(FormView):
             form.cleaned_data["partner"].as2_name,
         )
         as2message = As2Message(
-            sender=org.as2org,
-            receiver=partner.as2partner,
+            sender=form.cleaned_data["organization"].as2org,
+            receiver=form.cleaned_data["partner"].as2partner,
         )
         logger.debug(
             f'Building message from {form.cleaned_data["file"].name} to send to partner '
@@ -283,13 +288,14 @@ class SendAs2Message(FormView):
                 self.request,
                 "Message transmission failed, check Messages tab for details.",
             )
-        return super(SendAs2Message, self).form_valid(form)
+        return super().form_valid(form)
 
 
 class DownloadFile(View):
     """A generic view for downloading files such as payload, certificates..."""
 
     def get(self, request, obj_type, obj_id, *args, **kwargs):
+        """Return the requested file bytes as a response."""
         filename = ""
         file_content = ""
         # Get the file content based
