@@ -255,8 +255,8 @@ class SendAs2Message(FormView):
             form.cleaned_data["partner"].as2_name,
         )
         as2message = As2Message(
-            sender=form.cleaned_data["organization"].as2org,
-            receiver=form.cleaned_data["partner"].as2partner,
+            sender=org.as2org,
+            receiver=partner.as2partner,
         )
         logger.debug(
             f'Building message from {form.cleaned_data["file"].name} to send to partner '
