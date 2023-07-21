@@ -552,6 +552,7 @@ class Message(models.Model):
                 headers=header,
                 data=payload,
                 verify=self.partner.https_verify_ssl,
+                timeout=(settings.CONNECTION_TIMEOUT, settings.READ_TIMEOUT),
             )
             response.raise_for_status()
         except requests.exceptions.RequestException:
@@ -701,7 +702,8 @@ class Mdn(models.Model):
         # Send the mdn to the partner
         try:
             response = requests.post(
-                self.return_url, headers=dict(headers.items()), data=self.payload.read()
+                self.return_url, headers=dict(headers.items()), data=self.payload.read(),
+                timeout=(settings.CONNECTION_TIMEOUT, settings.READ_TIMEOUT)
             )
             response.raise_for_status()
         except requests.exceptions.RequestException:

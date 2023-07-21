@@ -23,3 +23,10 @@ MAX_ARCH_DAYS = APP_SETTINGS.get("MAX_ARCH_DAYS", 30)
 
 # Send positive MDN when duplicate message is received
 ERROR_ON_DUPLICATE = APP_SETTINGS.get("ERROR_ON_DUPLICATE", True)
+
+# Global TCP Connection Timeout
+CONNECTION_TIMEOUT = APP_SETTINGS.get("CONNECTION_TIMEOUT", 10)
+
+# Global TCP Read Timeout
+READ_TIMEOUT = APP_SETTINGS.get("READ_TIMEOUT", 60)
+
