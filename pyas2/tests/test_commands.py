@@ -30,7 +30,8 @@ def test_sendbulk_command(mocker, partner, organization):
         "messages", partner.as2_name, "outbox", organization.as2_name
     )
     test_file = Path(os.path.join(outbox_dir, "testmessage.edi"))
-    test_file.touch()
+    with test_file.open(mode="w") as f:
+        f.write("This is a test file with more than 10 bytes")
     command.handle()
     mocked_call_command.assert_called_with(
         "sendas2message",

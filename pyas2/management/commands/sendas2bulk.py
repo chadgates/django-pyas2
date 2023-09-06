@@ -16,8 +16,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for partner in Partner.objects.all():
             self.stdout.write(
-                "Process files in the outbox directory for "
-                'partner "%s".' % partner.as2_name
+                f"Process files in the outbox directory for partner {partner.as2_name}."
             )
             for org in Organization.objects.all():
                 if settings.DATA_DIR:
@@ -44,10 +43,17 @@ class Command(BaseCommand):
                 pending_files = filter(lambda x: x != ".", pending_files)
                 for pending_file in pending_files:
                     pending_file = os.path.join(outbox_folder, pending_file)
+
+                    if os.path.getsize(pending_file) < 10:
+                        self.stdout.write(
+                            f"Skipping file {pending_file} - filesize stayed below 10 bytes."
+                        )
+                        continue
+
                     self.stdout.write(
-                        'Sending file "%s" from organization "%s" to partner '
-                        '"%s".' % (pending_file, org.as2_name, partner.as2_name)
+                        f"Sending file {pending_file} from organization {org.as2_name} to partner {partner.as2_name}."
                     )
+
                     call_command(
                         "sendas2message",
                         org.as2_name,
