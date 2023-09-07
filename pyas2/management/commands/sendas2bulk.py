@@ -44,7 +44,7 @@ class Command(BaseCommand):
                 for pending_file in pending_files:
                     pending_file = os.path.join(outbox_folder, pending_file)
 
-                    if os.path.getsize(pending_file) < 10:
+                    if os.path.getsize(pending_file) == 0:
                         self.stdout.write(
                             f"Skipping file {pending_file} - filesize stayed below 10 bytes."
                         )
