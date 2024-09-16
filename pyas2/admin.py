@@ -169,6 +169,11 @@ class MessageAdmin(admin.ModelAdmin):
         "mdn_url",
     ]
 
+    list_select_related = (
+        "partner",
+        "organization",
+    )
+
     @staticmethod
     def mdn_url(obj):
         """Return the URL to the related MDN if present for the message."""
@@ -212,6 +217,7 @@ class MdnAdmin(admin.ModelAdmin):
     )
     list_display = ("mdn_id", "message", "timestamp", "status")
     list_filter = ("status",)
+    list_select_related = ("message",)
 
     def has_add_permission(self, request):
         return False
