@@ -71,6 +71,30 @@ class ReceiveAs2Message(View):
         ).exists()
 
     @staticmethod
+    def find_organization(org_id):
+        """Find the org using the As2 Id and return its pyas2 type"""
+        org = (
+            Organization.objects.select_related("encryption_key", "signature_key")
+            .filter(as2_name=org_id)
+            .first()
+        )
+        if org:
+            return org.as2org
+        return None
+
+    @staticmethod
+    def find_partner(partner_id):
+        """Find the partner using the As2 Id and return its pyas2 type"""
+        partner = (
+            Partner.objects.select_related("encryption_cert", "signature_cert")
+            .filter(as2_name=partner_id)
+            .first()
+        )
+        if partner:
+            return partner.as2partner
+        return None
+
+    @staticmethod
     def find_partnership(org_id, partner_id):
         org, partner = Partnership.objects.get_as2_org_partner(
             as2_name_org=org_id, as2_name_partner=partner_id
@@ -119,7 +143,7 @@ class ReceiveAs2Message(View):
                 )
                 return HttpResponse(_("AS2 ASYNC MDN has been received for unknown message."))
 
-            message = Message.objects.get(
+            message = Message.objects.select_related("organization", "partner").get(
                 message_id=as2mdn.orig_message_id, direction="OUT"
             )
             logger.info(
