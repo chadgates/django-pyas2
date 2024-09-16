@@ -21,6 +21,7 @@ from pyas2lib.as2 import Message as As2Message
 from django.test.utils import CaptureQueriesContext
 from django.db import connection
 
+
 class BasicServerClientTestCase(TestCase):
     """Test cases for the AS2 server and client.
     We will be testing each permutation as defined in RFC 4130 Section 2.4.2
@@ -553,7 +554,7 @@ class BasicServerClientTestCase(TestCase):
 
             # Remove the transaction related queries
             filtered_queries = [
-                query for query in queries if 'SAVEPOINT' not in query['sql']
+                query for query in queries if "SAVEPOINT" not in query["sql"]
             ]
 
             # number of queries should be 9
