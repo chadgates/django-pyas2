@@ -2,24 +2,22 @@ import os
 from email.parser import HeaderParser
 from unittest import mock
 
-from django.test import TestCase, Client
+from django.db import connection
+from django.test import Client, TestCase
+from django.test.utils import CaptureQueriesContext
+from pyas2lib.as2 import Message as As2Message
 from requests import Response
 from requests.exceptions import RequestException
 
 from pyas2.models import (
-    PrivateKey,
-    PublicCertificate,
+    Mdn,
+    Message,
     Organization,
     Partner,
-    Message,
-    Mdn,
+    PrivateKey,
+    PublicCertificate,
 )
 from pyas2.tests import TEST_DIR
-
-from pyas2lib.as2 import Message as As2Message
-
-from django.test.utils import CaptureQueriesContext
-from django.db import connection
 
 
 class BasicServerClientTestCase(TestCase):
