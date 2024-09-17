@@ -726,22 +726,34 @@ class Mdn(models.Model):
 
 class PartnershipManager(models.Manager):
     def get_as2_org_partner(self, as2_name_org, as2_name_partner):
-        org = Organization.objects.filter(as2_name=as2_name_org).first()
-        partner = Partner.objects.filter(as2_name=as2_name_partner).first()
+        org = Organization.objects.select_related("encryption_key", "signature_key", "encryption_key_alt", "signature_key_alt").filter(as2_name=as2_name_org).first()
+        partner = Partner.objects.select_related("encryption_cert", "signature_cert").filter(as2_name=as2_name_partner).first()
         if org and partner:
-            partnership = Partnership.objects.filter(
-                partner=partner, organization=org
+            partnership = Partnership.objects.select_related(
+                'organization',
+                'organization__signature_key',
+                'organization__signature_key_alt',
+                'organization__encryption_key',
+                'organization__encryption_key_alt').filter(
+                partner=partner,
+                organization=org
             ).first()
             if partnership:
                 org = partnership
         return org, partner
 
     def get_as2_org_partner_swap(self, as2_name_org, as2_name_partner):
-        org = Organization.objects.filter(as2_name__exact=as2_name_org).first()
-        partner = Partner.objects.filter(as2_name__exact=as2_name_partner).first()
+        org = Organization.objects.select_related("encryption_key", "signature_key", "encryption_key_alt", "signature_key_alt").filter(as2_name=as2_name_org).first()
+        partner = Partner.objects.select_related("encryption_cert", "signature_cert").filter(as2_name=as2_name_partner).first()
         if org and partner:
-            partnership = Partnership.objects.filter(
-                partner=partner, organization=org
+            partnership = Partnership.objects.select_related(
+                'organization',
+                'organization__signature_key',
+                'organization__signature_key_alt',
+                'organization__encryption_key',
+                'organization__encryption_key_alt').filter(
+                partner=partner,
+                organization=org
             ).first()
             if partnership:
                 if partnership.swap_org_key(persist=partnership.organization_auto_swap):
