@@ -72,6 +72,10 @@ class PartnerAdmin(admin.ModelAdmin):
         "mdn_mode",
     ]
     list_filter = ("name", "as2_name")
+    list_select_related = (
+        "encryption_cert",
+        "signature_cert",
+    )
     fieldsets = (
         (
             None,
@@ -172,6 +176,7 @@ class MessageAdmin(admin.ModelAdmin):
     list_select_related = (
         "partner",
         "organization",
+        "mdn",
     )
 
     @staticmethod
