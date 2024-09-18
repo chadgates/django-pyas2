@@ -13,13 +13,10 @@ from django.core.files.storage import default_storage
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext as _
-
-from pyas2lib import (
-    Mdn as As2Mdn,
-    Message as As2Message,
-    Organization as As2Organization,
-    Partner as As2Partner,
-)
+from pyas2lib import Mdn as As2Mdn
+from pyas2lib import Message as As2Message
+from pyas2lib import Organization as As2Organization
+from pyas2lib import Partner as As2Partner
 from pyas2lib.utils import extract_certificate_info
 
 from pyas2 import settings
@@ -28,7 +25,7 @@ from pyas2.utils import run_post_send
 # Check if running Django >= 4.2
 if django.VERSION >= (4, 2):
     try:
-        from django.core.files.storage import storages
+        from django.core.files.storage import storages  # noqa: E0611
 
         as2files_storage = storages[
             "as2files"
