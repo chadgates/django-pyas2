@@ -37,5 +37,7 @@ if django.VERSION >= (4, 2) and "as2files" not in settings.STORAGES:
         "BACKEND": "django.core.files.storage.FileSystemStorage",
         "OPTIONS": {
             "location": DATA_DIR,
+            "file_permissions_mode": 0o666,
+            "directory_permissions_mode": 0o777,
         },
     }
