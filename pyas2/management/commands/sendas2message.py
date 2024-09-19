@@ -4,6 +4,7 @@ import os
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.core.files.storage import default_storage
+from django.db import transaction
 from pyas2lib import Message as AS2Message
 
 from pyas2.models import Message
@@ -66,13 +67,17 @@ class Command(BaseCommand):
                 content_type=partner.content_type,
                 disposition_notification_to=org.email_address or "no-reply@pyas2.com",
             )
-        message, _ = Message.objects.create_from_as2message(
-            as2message=as2message,
-            payload=payload,
-            filename=original_filename,
-            direction="OUT",
-            status="P",
-        )
+
+        with transaction.atomic():
+            message, _ = Message.objects.create_from_as2message(
+                as2message=as2message,
+                payload=payload,
+                filename=original_filename,
+                direction="OUT",
+                status="P",
+            )
+        message.organization = org
+        message.partner = partner
         message.send_message(as2message.headers, as2message.content)
 
         # Delete original file if option is set
