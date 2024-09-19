@@ -7,13 +7,14 @@ import pytest
 from django.conf import settings
 from django.core import management
 from django.core.files.base import ContentFile
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from pyas2 import settings as app_settings
-from pyas2.models import As2Message, Message, Mdn
-from pyas2.tests import TEST_DIR
 from pyas2.management.commands.sendas2bulk import Command as SendBulkCommand
-from django.test.utils import CaptureQueriesContext
-from django.db import connection
+from pyas2.models import As2Message, Mdn, Message
+from pyas2.tests import TEST_DIR
+
 
 @pytest.mark.django_db
 def test_sendbulk_command(mocker, partner, organization):
@@ -97,6 +98,7 @@ def test_sendmessage_command(mocker, organization, partner):
 
     assert mocked_delete.call_count == 1
     assert len(filtered_queries) == 7
+
 
 @pytest.mark.django_db
 def test_manageserver_command(mocker, organization, partner):
