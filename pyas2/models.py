@@ -408,7 +408,9 @@ class Message(models.Model):
     organization = models.ForeignKey(Organization, null=True, on_delete=models.SET_NULL)
     partner = models.ForeignKey(Partner, null=True, on_delete=models.SET_NULL)
 
-    headers = models.FileField(upload_to=get_message_store, null=True, blank=True)
+    headers = models.FileField(
+        upload_to=get_message_store, null=True, blank=True, max_length=4096
+    )
     payload = models.FileField(
         upload_to=get_message_store, null=True, blank=True, max_length=4096
     )
@@ -608,7 +610,9 @@ class Mdn(models.Model):
     signed = models.BooleanField(default=False)
     return_url = models.URLField(null=True)
 
-    headers = models.FileField(upload_to=get_mdn_store, null=True, blank=True)
+    headers = models.FileField(
+        upload_to=get_mdn_store, null=True, blank=True, max_length=4096
+    )
     payload = models.FileField(
         upload_to=get_mdn_store, null=True, blank=True, max_length=4096
     )
