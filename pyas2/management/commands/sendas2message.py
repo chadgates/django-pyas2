@@ -68,14 +68,18 @@ class Command(BaseCommand):
                 disposition_notification_to=org.email_address or "no-reply@pyas2.com",
             )
 
-        with transaction.atomic():
-            message, _ = Message.objects.create_from_as2message(
-                as2message=as2message,
-                payload=payload,
-                filename=original_filename,
-                direction="OUT",
-                status="P",
-            )
+        message, _ = Message.objects.create_from_as2message(
+            as2message=as2message,
+            payload=payload,
+            filename=original_filename,
+            direction="OUT",
+            status="P",
+        )
+
+        # Check if we're inside an atomic block, if not, commit immediately to store the message
+        if not transaction.get_connection().in_atomic_block:
+            transaction.commit()
+
         message.organization = org
         message.partner = partner
         message.send_message(as2message.headers, as2message.content)
