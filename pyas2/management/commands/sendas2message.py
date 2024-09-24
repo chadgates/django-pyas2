@@ -77,8 +77,15 @@ class Command(BaseCommand):
             status="P",
         )
 
-        #message.organization = org
-        #message.partner = partner
+        # Check if we're inside an atomic block, if not, commit immediately to store the message
+        if not transaction.get_connection().in_atomic_block:
+            transaction.commit()  # Safe to commit if not in an atomic block
+
+        if type(org) == Organization:
+            message.organization = org
+        elif type(org) == Partnership:
+            message.organization = org.organization
+        message.partner = partner
 
         message.send_message(as2message.headers, as2message.content)
 
