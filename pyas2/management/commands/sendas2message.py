@@ -69,16 +69,17 @@ class Command(BaseCommand):
                 disposition_notification_to=org.email_address or "no-reply@pyas2.com",
             )
 
-        with transaction.atomic():
-            message, _ = Message.objects.create_from_as2message(
-                as2message=as2message,
-                payload=payload,
-                filename=original_filename,
-                direction="OUT",
-                status="P",
-            )
-        message.organization = org
-        message.partner = partner
+        message, _ = Message.objects.create_from_as2message(
+            as2message=as2message,
+            payload=payload,
+            filename=original_filename,
+            direction="OUT",
+            status="P",
+        )
+
+        #message.organization = org
+        #message.partner = partner
+
         message.send_message(as2message.headers, as2message.content)
 
         # Delete original file if option is set
