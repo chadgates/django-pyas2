@@ -4,7 +4,6 @@ import os
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.core.files.storage import default_storage
-from django.db import transaction
 from pyas2lib import Message as AS2Message
 
 from pyas2.models import Message
