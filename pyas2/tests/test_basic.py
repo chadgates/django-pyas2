@@ -555,7 +555,7 @@ class BasicServerClientTestCase(TestCase):
                 query for query in queries if "SAVEPOINT" not in query["sql"]
             ]
 
-            # number of queries should be 9
+            # Number of queries should be 13
             self.assertEqual(len(filtered_queries), 13)
 
     @mock.patch("requests.post")
