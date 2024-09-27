@@ -79,7 +79,7 @@ class Command(BaseCommand):
         # Check if we're inside an atomic block (f.e. in Django Test client). Commit to DB fails in such a case.
         if not transaction.get_connection().in_atomic_block:
             # Store the message before sending. This prevents a "message not found" error when an async MDN is received
-            # from the partner before the sendas2message command as finished and is commited to DB. 
+            # from the partner before the sendas2message command as finished and is commited to DB.
             transaction.commit()
 
         message.organization = org
