@@ -15,10 +15,17 @@ from django.views.generic import FormView
 from django.utils.crypto import get_random_string
 from pyas2lib import Message as As2Message
 from pyas2lib import Mdn as As2Mdn
+from pyas2lib import Organization as As2Organization
+from pyas2lib import Partner as As2Partner
 from pyas2lib.exceptions import DecryptionError
 from pyas2lib.exceptions import DuplicateDocument
 from pyas2lib.exceptions import IntegrityError
 
+from pyas2.caching import (
+    get_cached_organizations,
+    get_cached_partners,
+    get_cached_partnerships,
+)
 from pyas2.models import Mdn
 from pyas2.models import Message
 from pyas2.models import Organization
@@ -53,7 +60,7 @@ class ReceiveAs2Message(View):
 
     @staticmethod
     def check_success_message_exists(message_id, partner_id):
-        """Check if the message already exists in the system """
+        """Check if the message already exists in the system"""
         if settings.ERROR_ON_DUPLICATE:
             return Message.objects.filter(
                 message_id=message_id,
@@ -65,7 +72,7 @@ class ReceiveAs2Message(View):
 
     @staticmethod
     def check_same_message_exists(message_id, partner_id):
-        """ Check if the message already exists in the system """
+        """Check if the message already exists in the system"""
         return Message.objects.filter(
             message_id=message_id, partner_id=partner_id.strip()
         ).exists()
@@ -73,33 +80,40 @@ class ReceiveAs2Message(View):
     @staticmethod
     def find_organization(org_id):
         """Find the org using the As2 Id and return its pyas2 type"""
-        org = (
-            Organization.objects.select_related("encryption_key", "signature_key")
-            .filter(as2_name=org_id)
-            .first()
-        )
-        if org:
-            return org.as2org
+
+        org_data = get_cached_organizations().get(org_id)
+        if org_data:
+            # Return the computed as2org representation from the cached dictionary.
+            return As2Organization(**org_data.get("as2org_params"))
         return None
 
     @staticmethod
     def find_partner(partner_id):
-        """Find the partner using the As2 Id and return its pyas2 type"""
-        partner = (
-            Partner.objects.select_related("encryption_cert", "signature_cert")
-            .filter(as2_name=partner_id)
-            .first()
-        )
-        if partner:
-            return partner.as2partner
+        """
+        Find the partner by its as2_name using the cache.
+        The cached data is stored as a dictionary keyed by the partner's as2_name.
+        """
+        partner_data = get_cached_partners().get(partner_id)
+        if partner_data:
+            return As2Partner(**partner_data.get("as2partner_params"))
         return None
 
     @staticmethod
     def find_partnership(org_id, partner_id):
-        org, partner = Partnership.objects.get_as2_org_partner(
-            as2_name_org=org_id, as2_name_partner=partner_id
-        )
-        return org.as2org if org else None, partner.as2partner if partner else None
+        """
+        Find the partnership by its as2_name using the cache.
+        """
+        partnership_data = get_cached_partnerships().get("-".join([org_id, partner_id]))
+        if partnership_data:
+            return As2Organization(**partnership_data.get("as2org_params")), As2Partner(
+                **partnership_data.get("as2partner_params")
+            )
+
+        return ReceiveAs2Message.find_organization(
+            org_id
+        ), ReceiveAs2Message.find_partner(partner_id)
+
+        # return org.as2org if org else None, partner.as2partner if partner else None
 
     @staticmethod
     def find_alternative_partnership(org_id, partner_id):
@@ -141,7 +155,9 @@ class ReceiveAs2Message(View):
                     f"Asynchronous MDN received, but referenced AS2 message {as2mdn.message_id} "
                     f"could not be found."
                 )
-                return HttpResponse(_("AS2 ASYNC MDN has been received for unknown message."))
+                return HttpResponse(
+                    _("AS2 ASYNC MDN has been received for unknown message.")
+                )
 
             message = Message.objects.select_related("organization", "partner").get(
                 message_id=as2mdn.orig_message_id, direction="OUT"

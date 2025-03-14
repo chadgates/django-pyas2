@@ -6,3 +6,7 @@ class Pyas2Config(AppConfig):
 
     name = "pyas2"
     verbose_name = "pyAS2 File Transfer Server"
+
+    def ready(self):
+        # Import signal handlers to register them
+        import pyas2.signals

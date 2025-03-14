@@ -556,7 +556,8 @@ class BasicServerClientTestCase(TestCase):
             ]
 
             # number of queries should be 13 without Partnerships, 14 with Partnerships
-            self.assertEqual(len(filtered_queries), 14)
+            # 11 with Cache active and Partnerships
+            self.assertEqual(len(filtered_queries), 11)
 
     @mock.patch("requests.post")
     def build_and_send(self, partner, mock_request):

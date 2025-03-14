@@ -143,8 +143,8 @@ class Organization(models.Model):
     )
 
     @property
-    def as2org(self):
-        """Returns an object of pyas2lib's Organization class"""
+    def as2org_params(self):
+        """Returns a dictionary of parameters for pyas2lib's Organization class"""
         params = {"as2_name": self.as2_name, "mdn_url": settings.MDN_URL}
         if self.signature_key:
             params["sign_key"] = bytes(self.signature_key.key)
@@ -157,7 +157,11 @@ class Organization(models.Model):
         if self.confirmation_message:
             params["mdn_confirm_text"] = self.confirmation_message
 
-        return As2Organization(**params)
+        return params
+
+    @property
+    def as2org(self):
+        return As2Organization(**self.as2org_params)
 
     @property
     def has_primary_and_alt_keys(self):
@@ -182,7 +186,7 @@ class Organization(models.Model):
         return str(self.name)
 
     @property
-    def as2orgalt(self):
+    def as2orgalt_params(self):
         """Returns an object of pyas2lib's Organization class"""
         params = {"as2_name": self.as2_name, "mdn_url": settings.MDN_URL}
         if self.signature_key:
@@ -196,7 +200,11 @@ class Organization(models.Model):
         if self.confirmation_message:
             params["mdn_confirm_text"] = self.confirmation_message
 
-        return As2Organization(**params)
+        return params
+
+    @property
+    def as2orgalt(self):
+        return As2Organization(**self.as2orgalt_params)
 
     def swap_primary_alt(self):
         self.encryption_key, self.encryption_key_alt = (
@@ -353,7 +361,7 @@ class Partner(models.Model):
     )
 
     @property
-    def as2partner(self):
+    def as2partner_params(self):
         """Returns an object of pyas2lib's Partner class"""
         params = {
             "as2_name": self.as2_name,
@@ -382,7 +390,12 @@ class Partner(models.Model):
         if self.confirmation_message:
             params["mdn_confirm_text"] = self.confirmation_message
 
-        return As2Partner(**params)
+        return params
+
+    @property
+    def as2partner(self):
+        """Returns an object of pyas2lib's Partner class"""
+        return As2Partner(**self.as2partner_params)
 
     def __str__(self):
         return str(self.name)
@@ -725,8 +738,10 @@ class Mdn(models.Model):
         # Send the mdn to the partner
         try:
             response = requests.post(
-                self.return_url, headers=dict(headers.items()), data=self.payload.read(),
-                timeout=(settings.CONNECTION_TIMEOUT, settings.READ_TIMEOUT)
+                self.return_url,
+                headers=dict(headers.items()),
+                data=self.payload.read(),
+                timeout=(settings.CONNECTION_TIMEOUT, settings.READ_TIMEOUT),
             )
             response.raise_for_status()
         except requests.exceptions.RequestException:
@@ -739,35 +754,65 @@ class Mdn(models.Model):
 
 class PartnershipManager(models.Manager):
     def get_as2_org_partner(self, as2_name_org, as2_name_partner):
-        org = Organization.objects.select_related("encryption_key", "signature_key", "encryption_key_alt", "signature_key_alt").filter(as2_name=as2_name_org).first()
-        partner = Partner.objects.select_related("encryption_cert", "signature_cert").filter(as2_name=as2_name_partner).first()
+        org = (
+            Organization.objects.select_related(
+                "encryption_key",
+                "signature_key",
+                "encryption_key_alt",
+                "signature_key_alt",
+            )
+            .filter(as2_name=as2_name_org)
+            .first()
+        )
+        partner = (
+            Partner.objects.select_related("encryption_cert", "signature_cert")
+            .filter(as2_name=as2_name_partner)
+            .first()
+        )
         if org and partner:
-            partnership = Partnership.objects.select_related(
-                'organization',
-                'organization__signature_key',
-                'organization__signature_key_alt',
-                'organization__encryption_key',
-                'organization__encryption_key_alt').filter(
-                partner=partner,
-                organization=org
-            ).first()
+            partnership = (
+                Partnership.objects.select_related(
+                    "organization",
+                    "organization__signature_key",
+                    "organization__signature_key_alt",
+                    "organization__encryption_key",
+                    "organization__encryption_key_alt",
+                )
+                .filter(partner=partner, organization=org)
+                .first()
+            )
             if partnership:
                 org = partnership
         return org, partner
 
     def get_as2_org_partner_swap(self, as2_name_org, as2_name_partner):
-        org = Organization.objects.select_related("encryption_key", "signature_key", "encryption_key_alt", "signature_key_alt").filter(as2_name=as2_name_org).first()
-        partner = Partner.objects.select_related("encryption_cert", "signature_cert").filter(as2_name=as2_name_partner).first()
+        org = (
+            Organization.objects.select_related(
+                "encryption_key",
+                "signature_key",
+                "encryption_key_alt",
+                "signature_key_alt",
+            )
+            .filter(as2_name=as2_name_org)
+            .first()
+        )
+        partner = (
+            Partner.objects.select_related("encryption_cert", "signature_cert")
+            .filter(as2_name=as2_name_partner)
+            .first()
+        )
         if org and partner:
-            partnership = Partnership.objects.select_related(
-                'organization',
-                'organization__signature_key',
-                'organization__signature_key_alt',
-                'organization__encryption_key',
-                'organization__encryption_key_alt').filter(
-                partner=partner,
-                organization=org
-            ).first()
+            partnership = (
+                Partnership.objects.select_related(
+                    "organization",
+                    "organization__signature_key",
+                    "organization__signature_key_alt",
+                    "organization__encryption_key",
+                    "organization__encryption_key_alt",
+                )
+                .filter(partner=partner, organization=org)
+                .first()
+            )
             if partnership:
                 if partnership.swap_org_key(persist=partnership.organization_auto_swap):
                     org = partnership
@@ -808,6 +853,13 @@ class Partnership(models.Model):
             return True
         else:
             return False
+
+    @property
+    def as2org_params(self):
+        if self.organization_key == self.PRIMARY:
+            return self.organization.as2org_params
+        else:
+            return self.organization.as2orgalt_params
 
     @property
     def as2org(self):
