@@ -17,6 +17,8 @@ from pyas2.models import PublicCertificate
 from pyas2.tests.test_basic import SendMessageMock
 from pyas2.tests import TEST_DIR
 
+from pyas2.caching import clear_pyas2_cache
+
 
 class AlternativeCertTestCases(TestCase):
     """Test cases dealing with handling of failures and other features"""
@@ -107,6 +109,7 @@ class AlternativeCertTestCases(TestCase):
             mdn.payload.delete()
         for partnership in Partnership.objects.all():
             partnership.delete()
+        clear_pyas2_cache()
 
     def testAltKey(self):
         """Sender sends encrypted and signed data with alternative certificate.

@@ -12,7 +12,16 @@ from pyas2.models import Organization
 from pyas2.models import Partner
 from pyas2.models import Partnership
 
+from pyas2lib import Organization as As2Organization
+from pyas2lib import Partner as As2Partner
+
 logger = logging.getLogger("pyas2")
+
+from pyas2.caching import (
+    get_cached_organizations,
+    get_cached_partners,
+    get_cached_partnerships,
+)
 
 
 class Command(BaseCommand):
@@ -37,10 +46,19 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
 
         # Check if organization and partner exists
-
-        org, partner = Partnership.objects.get_as2_org_partner(
-            options["org_as2name"], options["partner_as2name"]
+        partnership = get_cached_partnerships().get(
+            "-".join([options["org_as2name"], options["partner_as2name"]])
         )
+
+        org = get_cached_organizations().get(options["org_as2name"])
+        partner = get_cached_partners().get(options["partner_as2name"])
+
+        if partnership:
+            as2_sender = As2Organization(**partnership.get("as2org_params"))
+            as2_receiver = As2Partner(**partnership.get("as2partner_params"))
+        elif org and partner:
+            as2_sender = As2Organization(**org.get("as2org_params"))
+            as2_receiver = As2Partner(**partner.get("as2partner_params"))
 
         if not org:
             raise CommandError(
@@ -60,13 +78,14 @@ class Command(BaseCommand):
         original_filename = os.path.basename(options["path_to_payload"])
         with default_storage.open(options["path_to_payload"], "rb") as in_file:
             payload = in_file.read()
-            as2message = AS2Message(sender=org.as2org, receiver=partner.as2partner)
+            as2message = AS2Message(sender=as2_sender, receiver=as2_receiver)
             as2message.build(
                 payload,
                 filename=original_filename,
-                subject=partner.subject,
-                content_type=partner.content_type,
-                disposition_notification_to=org.email_address or "no-reply@pyas2.com",
+                subject=partner.get("subject"),
+                content_type=partner.get("content_type"),
+                disposition_notification_to=org.get("email_address")
+                or "no-reply@pyas2.com",
             )
 
         message, _ = Message.objects.create_from_as2message(
@@ -80,12 +99,6 @@ class Command(BaseCommand):
         # Check if we're inside an atomic block, if not, commit immediately to store the message
         if not transaction.get_connection().in_atomic_block:
             transaction.commit()  # Safe to commit if not in an atomic block
-
-        if type(org) == Organization:
-            message.organization = org
-        elif type(org) == Partnership:
-            message.organization = org.organization
-        message.partner = partner
 
         message.send_message(as2message.headers, as2message.content)
 

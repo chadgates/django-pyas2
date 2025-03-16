@@ -681,9 +681,12 @@ class MdnManager(models.Manager):
         )
         filename = f"{uuid4()}.mdn"
         mdn.headers.save(
-            name=f"{filename}.header", content=ContentFile(as2mdn.headers_str)
+            name=f"{filename}.header",
+            content=ContentFile(as2mdn.headers_str),
+            save=False,
         )
-        mdn.payload.save(filename, content=ContentFile(as2mdn.content))
+        mdn.payload.save(filename, content=ContentFile(as2mdn.content), save=False)
+        mdn.save()
         return mdn
 
 

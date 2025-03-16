@@ -53,7 +53,6 @@ def load_partnership_cache():
         "organization__encryption_key",
         "organization__encryption_key_alt",
     ).all()
-
     ps_data = {}
     for partnership in partnership_qs:
         try:
@@ -185,3 +184,9 @@ def delete_partnership_from_cache(org_as2_name, partner_as2_name):
             del partnerships[key]
             cache.set(PARTNERSHIP_CACHE_KEY, partnerships, CACHE_TIMEOUT)
     return partnerships
+
+
+def clear_pyas2_cache():
+    cache.delete(PARTNER_CACHE_KEY)
+    cache.delete(ORGANIZATION_CACHE_KEY)
+    cache.delete(PARTNERSHIP_CACHE_KEY)

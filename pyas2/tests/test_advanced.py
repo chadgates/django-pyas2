@@ -17,6 +17,8 @@ from pyas2.models import PublicCertificate
 from pyas2.tests.test_basic import SendMessageMock
 from pyas2.tests import TEST_DIR
 
+from pyas2.caching import clear_pyas2_cache
+
 
 class AdvancedTestCases(TestCase):
     """Test cases dealing with handling of failures and other features"""
@@ -88,6 +90,8 @@ class AdvancedTestCases(TestCase):
         for mdn in Mdn.objects.all():
             mdn.headers.delete()
             mdn.payload.delete()
+
+        clear_pyas2_cache()
 
     def test_post_send_command(self):
         """Test that the command after successful send gets executed."""

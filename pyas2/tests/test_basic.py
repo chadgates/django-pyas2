@@ -19,6 +19,8 @@ from pyas2.models import (
 )
 from pyas2.tests import TEST_DIR
 
+from pyas2.caching import clear_pyas2_cache
+
 
 class BasicServerClientTestCase(TestCase):
     """Test cases for the AS2 server and client.
@@ -87,6 +89,8 @@ class BasicServerClientTestCase(TestCase):
         for mdn in Mdn.objects.all():
             mdn.headers.delete()
             mdn.payload.delete()
+
+        clear_pyas2_cache()
 
     def testEndpoint(self):
         """Test if the as2 receive endpoint is active"""
@@ -555,9 +559,11 @@ class BasicServerClientTestCase(TestCase):
                 query for query in queries if "SAVEPOINT" not in query["sql"]
             ]
 
-            # number of queries should be 13 without Partnerships, 14 with Partnerships
-            # 11 with Cache active and Partnerships
-            self.assertEqual(len(filtered_queries), 11)
+            # Without cache: number of queries should be 13 without Partnerships,
+            #                14 with Partnerships
+            # With cache and Partnerships: number of query should be 13 when cache was cleared,
+            #             11 when it was not cleared
+            self.assertEqual(len(filtered_queries), 13)
 
     @mock.patch("requests.post")
     def build_and_send(self, partner, mock_request):
