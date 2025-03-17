@@ -563,7 +563,7 @@ class BasicServerClientTestCase(TestCase):
             #                14 with Partnerships
             # With cache and Partnerships: number of query should be 13 when cache was cleared,
             #             11 when it was not cleared
-            self.assertEqual(len(filtered_queries), 13)
+            self.assertEqual(len(filtered_queries), 11)
 
     @mock.patch("requests.post")
     def build_and_send(self, partner, mock_request):

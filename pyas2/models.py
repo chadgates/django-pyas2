@@ -8,6 +8,8 @@ from uuid import uuid4
 
 import django
 import requests
+import httpx
+
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import models
@@ -21,6 +23,10 @@ from pyas2lib.utils import extract_certificate_info
 
 from pyas2 import settings
 from pyas2.utils import run_post_send
+
+from asgiref.sync import sync_to_async
+from threading import Thread
+
 
 # Check if running Django >= 4.2
 if django.VERSION >= (4, 2):
@@ -38,6 +44,28 @@ else:
     as2files_storage = default_storage
 
 logger = logging.getLogger("pyas2")
+
+
+def save_payload_sync(message, filename, payload):
+    """
+    Synchronous wrapper to save message payload in a separate thread to avoid blocking the async loop.
+
+    :param message: The message object to save the payload to.
+    :param filename: The name of the file under which to save the payload.
+    :param payload: The payload content to save.
+    """
+    content_file = ContentFile(payload)
+    message.payload.save(name=filename, content=content_file)
+
+async def save_payload_async(message, filename, payload):
+    return await sync_to_async(message.payload.save)(name=filename, content=ContentFile(payload))
+
+def save_headers_sync(message, filename, headers_str):
+    content_file = ContentFile(headers_str)
+    message.headers.save(name=filename, content=content_file)
+
+async def save_headers_async_wrapper(message, filename, headers_str):
+    return await sync_to_async(message.headers.save)(name=f"{filename}.header", content=ContentFile(headers_str))
 
 
 class PrivateKey(models.Model):
@@ -461,6 +489,72 @@ class MessageManager(models.Manager):
 
         return message, full_filename
 
+    async def acreate_from_as2message(
+        self,
+        as2message,
+        payload,
+        direction,
+        status,
+        filename=None,
+        detailed_status=None,
+    ):
+        """Create the Message from the pyas2lib's Message object."""
+
+        if direction == "IN":
+            organization = as2message.receiver.as2_name if as2message.receiver else None
+            partner = as2message.sender.as2_name if as2message.sender else None
+        else:
+            partner = as2message.receiver.as2_name if as2message.receiver else None
+            organization = as2message.sender.as2_name if as2message.sender else None
+
+        message, created = await self.aupdate_or_create(
+            message_id=as2message.message_id,
+            partner_id=partner,
+            organization_id=organization,
+            defaults=dict(
+                direction=direction,
+                status=status,
+                compressed=as2message.compressed,
+                encrypted=as2message.encrypted,
+                signed=as2message.signed,
+                detailed_status=detailed_status,
+            ),
+        )
+
+        # if created:
+        #     try:
+        #         message = await self.select_related("partner").aget(message_id=message.message_id, partner_id=partner, organization_id=organization)
+        #     except Message.MultipleObjectsReturned:
+        #         pass
+
+        # Save the headers and payload to store
+        if not filename:
+            filename = f"{uuid4()}.msg"
+
+        message.headers.save(
+            name=f"{filename}.header",
+            content=ContentFile(as2message.headers_str),
+            save=False,
+        )
+        message.payload.save(name=filename, content=ContentFile(payload), save=False)
+        await message.asave()
+
+        # await save_headers_async_wrapper(message=message, filename=f"{filename}.header", headers_str=as2message.headers_str)
+        # await save_payload_async(message=message, filename=filename, payload=payload)
+
+        # Save the payload to the inbox folder
+        full_filename = None
+        if direction == "IN" and status == "S":
+            dirname = os.path.join("messages", organization, "inbox", partner)
+            if not message.partner.keep_filename or not filename:
+                filename = f"{message.message_id}.msg"
+
+            full_filename = as2files_storage.generate_filename(
+                posixpath.join(dirname, filename)
+            )
+            as2files_storage.save(name=full_filename, content=ContentFile(payload))
+
+        return message, full_filename
 
 def get_message_store(instance, filename):
     """Return the path for storing the message payload."""
@@ -649,6 +743,99 @@ class Message(models.Model):
 
         self.save()
 
+    async def asend_message(self, header, payload):
+        """Send the message to the partner"""
+
+        if self.organization_id and self.partner_id:
+            self.organization = await Organization.objects.aget(
+                as2_name=self.organization_id
+            )
+            self.partner = await Partner.objects.aget(as2_name=self.partner_id)
+
+        logger.info(
+            f'Sending message {self.message_id} from organization "{self.organization}" '
+            f'to partner "{self.partner}".'
+        )
+
+        # Set up the http auth if specified in the partner profile
+        auth = None
+        if self.partner.http_auth:
+            auth = (self.partner.http_auth_user, self.partner.http_auth_pass)
+
+        # Send the message to the partner
+        async with httpx.AsyncClient(verify=self.partner.https_verify_ssl) as client:
+            try:
+                response = await client.post(
+                    self.partner.target_url,
+                    auth=auth,
+                    headers=header,
+                    data=payload,
+                    follow_redirects=True,
+                    # max_redirects = 5,
+                )
+                print(response)
+                response.raise_for_status()
+            except httpx.RequestError:
+                self.status = "R"
+                self.detailed_status = (
+                    f"Failed to send message, error:\n{traceback.format_exc()}"
+                )
+                await self.asave()
+                return
+            except Exception as e:
+                print(e)
+        # Process the MDN based on the partner profile settings
+        if self.partner.mdn:
+            if self.partner.mdn_mode == "ASYNC":
+                self.status = "P"
+            else:
+                # Process the synchronous MDN received as response
+
+                # Get the response headers, convert key to lower case
+                # for normalization
+                mdn_headers = dict(
+                    (k.lower().replace("_", "-"), response.headers[k])
+                    for k in response.headers
+                )
+
+                # create the mdn content with message-id and content-type
+                # header and response content
+                mdn_content = (
+                    f'message-id: {mdn_headers.get("message-id", self.message_id)}\n'
+                )
+                mdn_content += f'content-type: {mdn_headers["content-type"]}\n\n'
+                mdn_content = mdn_content.encode("utf-8") + response.content
+
+                # Parse the as2 mdn received
+                logger.debug(
+                    f"Received MDN response for message {self.message_id} "
+                    f"with content: {mdn_content}"
+                )
+                as2mdn = As2Mdn()
+                mdn_status, mdn_detailed_status = await sync_to_async(as2mdn.parse)(
+                    mdn_content, lambda x, y: self.as2message
+                )
+
+                # Update the message status and return the response
+                if mdn_status == "processed":
+                    self.status = "S"
+                    run_post_send(self)
+                else:
+                    self.status = "E"
+                    self.detailed_status = (
+                        f"Partner failed to process message: {mdn_detailed_status}"
+                    )
+                if mdn_detailed_status != "mdn-not-found":
+                    await Mdn.objects.acreate_from_as2mdn(
+                        as2mdn=as2mdn, message=self, status="R"
+                    )
+        else:
+            # No MDN requested mark message as success and run command
+            self.status = "S"
+            run_post_send(self)
+
+        await self.asave()
+
     def __str__(self):
         return str(self.message_id)
 
@@ -689,6 +876,38 @@ class MdnManager(models.Manager):
         mdn.save()
         return mdn
 
+    async def acreate_from_as2mdn(self, as2mdn, message, status, return_url=None):
+        """Create the MDN from the pyas2lib's MDN object"""
+        signed = bool(as2mdn.digest_alg)
+
+        # Check for message-id in MDN.
+        if as2mdn.message_id is None:
+            message_id = as2mdn.orig_message_id
+            logger.warning(
+                f"Received MDN response without a message-id. Using original "
+                f"message-id as ID instead: {message_id}"
+            )
+        else:
+            message_id = as2mdn.message_id
+
+        mdn, _ = await self.aupdate_or_create(
+            message=message,
+            defaults=dict(
+                mdn_id=message_id,
+                status=status,
+                signed=signed,
+                return_url=return_url,
+            ),
+        )
+        filename = f"{uuid4()}.mdn"
+        mdn.headers.save(
+            name=f"{filename}.header",
+            content=ContentFile(as2mdn.headers_str),
+            save=False,
+        )
+        mdn.payload.save(filename, content=ContentFile(as2mdn.content), save=False)
+        await mdn.asave()
+        return mdn
 
 def get_mdn_store(instance, filename):
     """Return the path for storing the MDN payload."""

@@ -18,9 +18,9 @@ from pyas2lib import Partner as As2Partner
 logger = logging.getLogger("pyas2")
 
 from pyas2.caching import (
-    get_cached_organizations,
-    get_cached_partners,
-    get_cached_partnerships,
+    get_cached_organizations_by_as2_name,
+    get_cached_partners_by_as2_name,
+    get_cached_partnerships_by_as2_name,
 )
 
 
@@ -46,12 +46,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
 
         # Check if organization and partner exists
-        partnership = get_cached_partnerships().get(
-            "-".join([options["org_as2name"], options["partner_as2name"]])
-        )
+        partnership = get_cached_partnerships_by_as2_name(options["org_as2name"], options["partner_as2name"])
 
-        org = get_cached_organizations().get(options["org_as2name"])
-        partner = get_cached_partners().get(options["partner_as2name"])
+        org = get_cached_organizations_by_as2_name(options["org_as2name"])
+        partner = get_cached_partners_by_as2_name(options["partner_as2name"])
 
         if partnership:
             as2_sender = As2Organization(**partnership.get("as2org_params"))

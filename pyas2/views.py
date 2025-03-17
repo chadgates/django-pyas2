@@ -22,9 +22,9 @@ from pyas2lib.exceptions import DuplicateDocument
 from pyas2lib.exceptions import IntegrityError
 
 from pyas2.caching import (
-    get_cached_organizations,
-    get_cached_partners,
-    get_cached_partnerships,
+    get_cached_organizations_by_as2_name,
+    get_cached_partners_by_as2_name,
+    get_cached_partnerships_by_as2_name,
 )
 from pyas2.models import Mdn
 from pyas2.models import Message
@@ -81,7 +81,7 @@ class ReceiveAs2Message(View):
     def find_organization(org_id):
         """Find the org using the As2 Id and return its pyas2 type"""
 
-        org_data = get_cached_organizations().get(org_id)
+        org_data = get_cached_organizations_by_as2_name(org_id)
         if org_data:
             # Return the computed as2org representation from the cached dictionary.
             return As2Organization(**org_data.get("as2org_params"))
@@ -93,7 +93,7 @@ class ReceiveAs2Message(View):
         Find the partner by its as2_name using the cache.
         The cached data is stored as a dictionary keyed by the partner's as2_name.
         """
-        partner_data = get_cached_partners().get(partner_id)
+        partner_data = get_cached_partners_by_as2_name(partner_id)
         if partner_data:
             return As2Partner(**partner_data.get("as2partner_params"))
         return None
@@ -103,7 +103,7 @@ class ReceiveAs2Message(View):
         """
         Find the partnership by its as2_name using the cache.
         """
-        partnership_data = get_cached_partnerships().get("-".join([org_id, partner_id]))
+        partnership_data = get_cached_partnerships_by_as2_name(org_id, partner_id)
         if partnership_data:
             return As2Organization(**partnership_data.get("as2org_params")), As2Partner(
                 **partnership_data.get("as2partner_params")

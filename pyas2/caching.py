@@ -23,6 +23,7 @@ def load_partner_cache():
         data = model_to_dict(partner)
         data["as2partner_params"] = partner.as2partner_params
         partner_data[partner.as2_name] = data
+        cache.set("-".join([PARTNER_CACHE_KEY, partner.as2_name]), data, CACHE_TIMEOUT)
     cache.set(PARTNER_CACHE_KEY, partner_data, CACHE_TIMEOUT)
     return partner_data
 
@@ -40,6 +41,7 @@ def load_organization_cache():
             org.as2orgalt_params if org.has_primary_and_alt_keys else None
         )
         org_data[org.as2_name] = data
+        cache.set("-".join([ORGANIZATION_CACHE_KEY, org.as2_name]), data, CACHE_TIMEOUT)
     cache.set(ORGANIZATION_CACHE_KEY, org_data, CACHE_TIMEOUT)
     return org_data
 
@@ -64,6 +66,7 @@ def load_partnership_cache():
                 [partnership.organization.as2_name, partnership.partner.as2_name]
             )
             ps_data[key] = data
+            cache.set("-".join([PARTNERSHIP_CACHE_KEY, key]), data, CACHE_TIMEOUT)
         except AttributeError:
             # Skip if partnership has missing key attributes.
             continue
@@ -77,12 +80,25 @@ def get_cached_partners():
         partners = load_partner_cache()
     return partners
 
+def get_cached_partners_by_as2_name(as2_name):
+    partner = cache.get("-".join([PARTNER_CACHE_KEY, as2_name]))
+    if partner is None:
+        load_partner_cache()
+        partner = cache.get("-".join([PARTNER_CACHE_KEY, as2_name]))
+    return partner
 
 def get_cached_organizations():
     organizations = cache.get(ORGANIZATION_CACHE_KEY)
     if organizations is None:
         organizations = load_organization_cache()
     return organizations
+
+def get_cached_organizations_by_as2_name(as2_name):
+    org = cache.get("-".join([ORGANIZATION_CACHE_KEY, as2_name]))
+    if org is None:
+        load_organization_cache()
+        org = cache.get("-".join([ORGANIZATION_CACHE_KEY, as2_name]))
+    return org
 
 
 def get_cached_partnerships():
@@ -91,6 +107,12 @@ def get_cached_partnerships():
         partnerships = load_partnership_cache()
     return partnerships
 
+def get_cached_partnerships_by_as2_name(org_as2_name, partner_as2_name):
+    partnership = cache.get("-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name]))
+    if partnership is None:
+        load_partnership_cache()
+        partnership = cache.get("-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name]))
+    return partnership
 
 # ----------------------------
 # Individual Update Functions
@@ -106,6 +128,7 @@ def update_partner_cache(partner):
     data["as2partner_params"] = partner.as2partner_params
     partners[partner.as2_name] = data
     cache.set(PARTNER_CACHE_KEY, partners, CACHE_TIMEOUT)
+    cache.set("-".join([PARTNER_CACHE_KEY, partner.as2_name]), data, CACHE_TIMEOUT)
     return partners
 
 
@@ -122,6 +145,7 @@ def update_organization_cache(org):
     )
     organizations[org.as2_name] = data
     cache.set(ORGANIZATION_CACHE_KEY, organizations, CACHE_TIMEOUT)
+    cache.set("-".join([ORGANIZATION_CACHE_KEY, org.as2_name]), data, CACHE_TIMEOUT)
     return organizations
 
 
@@ -140,6 +164,7 @@ def update_partnership_cache(partnership):
         )
         partnerships[key] = data
         cache.set(PARTNERSHIP_CACHE_KEY, partnerships, CACHE_TIMEOUT)
+        cache.set("-".join([PARTNERSHIP_CACHE_KEY, key]), data, CACHE_TIMEOUT)
     except AttributeError:
         pass
     return partnerships
