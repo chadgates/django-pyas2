@@ -450,6 +450,9 @@ class MessageManager(models.Manager):
             partner = as2message.receiver.as2_name if as2message.receiver else None
             organization = as2message.sender.as2_name if as2message.sender else None
 
+        from pyas2.caching import get_cached_partners_by_as2_name
+        partner_dict = get_cached_partners_by_as2_name(partner)
+
         message, _ = self.update_or_create(
             message_id=as2message.message_id,
             partner_id=partner,
@@ -479,7 +482,7 @@ class MessageManager(models.Manager):
         full_filename = None
         if direction == "IN" and status == "S":
             dirname = os.path.join("messages", organization, "inbox", partner)
-            if not message.partner.keep_filename or not filename:
+            if not partner_dict.get("keep_filename") or not filename:
                 filename = f"{message.message_id}.msg"
 
             full_filename = as2files_storage.generate_filename(

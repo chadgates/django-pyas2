@@ -83,6 +83,8 @@ def get_cached_partners():
     return partners
 
 def get_cached_partners_by_as2_name(as2_name):
+    if as2_name is None:
+        return None
     partner = cache.get("-".join([PARTNER_CACHE_KEY, as2_name]))
     if partner is None:
         load_partner_cache()
@@ -96,6 +98,8 @@ def get_cached_organizations():
     return organizations
 
 def get_cached_organizations_by_as2_name(as2_name):
+    if as2_name is None:
+        return None
     org = cache.get("-".join([ORGANIZATION_CACHE_KEY, as2_name]))
     if org is None:
         load_organization_cache()
@@ -110,6 +114,9 @@ def get_cached_partnerships():
     return partnerships
 
 def get_cached_partnerships_by_as2_name(org_as2_name, partner_as2_name):
+    if org_as2_name is None or partner_as2_name is None:
+        return None
+
     partnership = cache.get("-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name]))
     if cache.get(PARTNERSHIP_CACHE_KEY_STATE)!=LOADED and partnership is None:
         load_partnership_cache()
