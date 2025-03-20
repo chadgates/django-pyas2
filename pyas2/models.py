@@ -850,7 +850,7 @@ class MdnManager(models.Manager):
         # Check for message-id in MDN.
         if as2mdn.message_id is None:
             message_id = as2mdn.orig_message_id
-            logger.warning(
+            logger.debug(
                 f"Received MDN response without a message-id. Using original "
                 f"message-id as ID instead: {message_id}"
             )

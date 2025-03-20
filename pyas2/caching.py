@@ -7,7 +7,8 @@ CACHE_TIMEOUT = 86400  # Cache duration in seconds
 PARTNER_CACHE_KEY = "partner_cache"
 ORGANIZATION_CACHE_KEY = "organization_cache"
 PARTNERSHIP_CACHE_KEY = "partnership_cache"
-
+PARTNERSHIP_CACHE_KEY_STATE = "partnership_cache_state"
+LOADED = "loaded"
 
 # ----------------------------
 # Initial Cache Loading Functions
@@ -71,6 +72,7 @@ def load_partnership_cache():
             # Skip if partnership has missing key attributes.
             continue
     cache.set(PARTNERSHIP_CACHE_KEY, ps_data, CACHE_TIMEOUT)
+    cache.set(PARTNERSHIP_CACHE_KEY_STATE, LOADED, CACHE_TIMEOUT)
     return ps_data
 
 
@@ -109,7 +111,7 @@ def get_cached_partnerships():
 
 def get_cached_partnerships_by_as2_name(org_as2_name, partner_as2_name):
     partnership = cache.get("-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name]))
-    if partnership is None:
+    if cache.get(PARTNERSHIP_CACHE_KEY_STATE)!=LOADED and partnership is None:
         load_partnership_cache()
         partnership = cache.get("-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name]))
     return partnership
