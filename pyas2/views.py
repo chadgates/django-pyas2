@@ -228,7 +228,11 @@ class ReceiveAs2Message(View):
 
             # run post receive command on success
             if status == "processed":
-                run_post_receive(message, full_fn)
+                run_post_receive(message,
+                                 full_fn,
+                                 as2message.headers.get("as2-to"),
+                                 as2message.headers.get("as2-from"),
+                                 )
 
             # Return the mdn in case of sync else return text message
             if as2mdn and as2mdn.mdn_mode == "SYNC":
