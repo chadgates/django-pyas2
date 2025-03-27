@@ -776,7 +776,6 @@ class Message(models.Model):
                     follow_redirects=True,
                     # max_redirects = 5,
                 )
-                print(response)
                 response.raise_for_status()
             except httpx.RequestError:
                 self.status = "R"
