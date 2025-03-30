@@ -1,10 +1,11 @@
 import asyncio
 import logging
 import os
+import aiofiles
 
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
-from django.core.files.storage import default_storage
+from django.core.files.storage import default_storage, FileSystemStorage
 from django.db import transaction
 from pyas2lib import Message as AS2Message
 
@@ -46,25 +47,37 @@ async def main(*args, **options):
     if not partner:
         raise CommandError(f'Partner "{options["partner_as2name"]}" does not exist')
 
-    # Check if file exists
-    if not default_storage.exists(options["path_to_payload"]):
-        raise CommandError(
-            f'Payload at location "{options["path_to_payload"]}" does not exist.'
-        )
+    # Use provided payload content if available; otherwise, read the file from storage.
+    if options.get("payload") is not None:
+        # In this case we expect that "payload" contains the binary content.
+        payload = options["payload"]
+        original_filename = os.path.basename(options["path_to_payload"])
+    else:
+        # Read file asynchronously if default_storage is a FileSystemStorage.
+        if isinstance(default_storage, FileSystemStorage):
+            print("Using async file read for FileSystemStorage")
+            file_path = default_storage.path(options["path_to_payload"])
+            async with aiofiles.open(file_path, "rb") as in_file:
+                payload = await in_file.read()
+            original_filename = os.path.basename(file_path)
+        else:
+            # Fallback: use a sync_to_async wrapper for non-filesystem storages.
+            async def read_file():
+                with default_storage.open(options["path_to_payload"], "rb") as in_file:
+                    return in_file.read()
+
+            payload = await sync_to_async(read_file)()
+            original_filename = os.path.basename(options["path_to_payload"])
 
     # Build and send the AS2 message
-    original_filename = os.path.basename(options["path_to_payload"])
-    with default_storage.open(options["path_to_payload"], "rb") as in_file:
-        payload = in_file.read()
-        as2message = AS2Message(sender=as2_sender, receiver=as2_receiver)
-        as2message.build(
-            payload,
-            filename=original_filename,
-            subject=partner.get("subject"),
-            content_type=partner.get("content_type"),
-            disposition_notification_to=org.get("email_address")
-                                        or "no-reply@pyas2.com",
-        )
+    as2message = AS2Message(sender=as2_sender, receiver=as2_receiver)
+    as2message.build(
+        payload,
+        filename=original_filename,
+        subject=partner.get("subject"),
+        content_type=partner.get("content_type"),
+        disposition_notification_to=org.get("email_address") or "no-reply@pyas2.com",
+    )
 
     message, _ = await Message.objects.acreate_from_as2message(
         as2message=as2message,
@@ -80,15 +93,15 @@ async def main(*args, **options):
 
     await message.asend_message(as2message.headers, as2message.content)
 
-    # Delete original file if option is set
-    if options["delete"]:
+    # Delete original file if option is set and read from storage (i.e. no payload was passed)
+    if options["delete"] and options.get("payload") is None:
         default_storage.delete(options["path_to_payload"])
 
 
 class Command(BaseCommand):
     """Command to send an AS2 message."""
 
-    help = "Send an as2 message to your trading partner"
+    help = "Send an AS2 message to your trading partner"
     args = "<organization_as2name partner_as2name path_to_payload>"
 
     def add_arguments(self, parser):
@@ -102,6 +115,13 @@ class Command(BaseCommand):
             dest="delete",
             default=False,
             help="Delete source file after processing",
+        )
+        parser.add_argument(
+            "--payload",
+            help=(
+                "Optional binary payload content. If provided, this overrides reading "
+                "the file from the path specified by path_to_payload."
+            )
         )
 
     def handle(self, *args, **options):

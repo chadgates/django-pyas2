@@ -12,6 +12,8 @@ install_requires = [
     'django>=2.2.18',
     'requests',
     'psutil==6.1.0',
+    'httpx==0.28.1',
+    'aiofiles==24.1.0',
 ]
 
 tests_require = [
