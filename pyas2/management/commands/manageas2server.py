@@ -96,14 +96,17 @@ class Command(BaseCommand):
             retry_msg.retries += 1
 
         # if max retries has exceeded then mark message status as error
-        if retry_msg.retries > settings.MAX_RETRIES:
-            if retry_msg.status == "P":
-                retry_msg.detailed_status = (
-                    "Failed to receive asynchronous MDN within the threshold limit."
-                )
-            elif retry_msg.status == "R":
-                retry_msg.detailed_status = "Retry count exceeded the limit."
 
+        if retry_msg.retries > min(settings.MAX_RETRIES, 2) and retry_msg.status == "P":
+            retry_msg.detailed_status = (
+                "Failed to receive asynchronous MDN within the threshold limit."
+            )
+            retry_msg.status = "E"
+            retry_msg.save()
+            return
+
+        if retry_msg.retries > settings.MAX_RETRIES and retry_msg.status == "R":
+            retry_msg.detailed_status = "Retry count exceeded the limit."
             retry_msg.status = "E"
             retry_msg.save()
             return
