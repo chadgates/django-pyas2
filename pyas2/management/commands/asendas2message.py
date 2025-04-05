@@ -55,7 +55,6 @@ async def main(*args, **options):
     else:
         # Read file asynchronously if default_storage is a FileSystemStorage.
         if isinstance(default_storage, FileSystemStorage):
-            print("Using async file read for FileSystemStorage")
             file_path = default_storage.path(options["path_to_payload"])
             async with aiofiles.open(file_path, "rb") as in_file:
                 payload = await in_file.read()
