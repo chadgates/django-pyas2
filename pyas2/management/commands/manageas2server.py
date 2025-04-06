@@ -17,6 +17,8 @@ from pyas2 import settings
 from pyas2.models import Mdn, Message, Partnership
 
 
+app_role = os.environ.get("appRole", "notdefined").upper()
+
 def handle_pid_file(pid_file, stdout):
     """Handles the creation, validation, and cleanup of a PID file in a cross-platform way."""
     if os.path.exists(pid_file):
@@ -164,6 +166,10 @@ class Command(BaseCommand):
         reprocess_msg.save()
 
     def handle(self, *args, **options):
+        # Prevent any maintenance jobs from running on worker role
+        if app_role == "WORKER":
+            return
+
         temp_dir = tempfile.gettempdir()  # Get the temporary directory for the OS
 
         if options["retry"]:

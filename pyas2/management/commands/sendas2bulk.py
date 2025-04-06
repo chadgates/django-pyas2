@@ -8,12 +8,18 @@ from pyas2.models import Organization
 from pyas2.models import Partner
 
 
+app_role = os.environ.get("appRole", "notdefined").upper()
+
 class Command(BaseCommand):
     """Command to send all pending messages."""
 
     help = "Command for sending all pending messages in the outbox folders"
 
     def handle(self, *args, **options):
+        # Prevent bulk sending on worker
+        if app_role == "WORKER":
+            return
+
         for partner in Partner.objects.all():
             self.stdout.write(
                 f"Process files in the outbox directory for partner {partner.as2_name}."
