@@ -299,7 +299,7 @@ class Partner(models.Model):
         ),
     )
 
-    target_url = models.URLField()
+    target_url = models.URLField(max_length=2048)
     subject = models.CharField(
         max_length=255, default=_("EDI Message sent using pyas2")
     )
