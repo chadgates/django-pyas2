@@ -33,7 +33,6 @@ class PrivateKeyAdmin(admin.ModelAdmin):
             '<a href="{}" class="button">Click to Download</a>', download_url
         )
 
-    download_key.allow_tags = True
     download_key.short_description = "Key File"
 
 
@@ -52,7 +51,6 @@ class PublicCertificateAdmin(admin.ModelAdmin):
             '<a href="{}" class="button">Click to Download</a>', download_url
         )
 
-    download_cert.allow_tags = True
     download_cert.short_description = "Certificate File"
 
 
@@ -140,6 +138,9 @@ class PartnerAdmin(admin.ModelAdmin):
     )
     actions = ["send_message"]
 
+    @admin.action(
+        description="Send a message to the selected partner"
+    )
     def send_message(self, request, queryset):  # pylint: disable=W0613,R0201
         """Send the message to the first partner chosen by the user."""
         partner = queryset.first()
@@ -147,7 +148,6 @@ class PartnerAdmin(admin.ModelAdmin):
             reverse_lazy("as2-send") + "?partner_id=%s" % partner.as2_name
         )
 
-    send_message.short_description = "Send a message to the selected partner"
 
 
 @admin.register(Organization)
@@ -199,7 +199,6 @@ class MessageAdmin(admin.ModelAdmin):
             return format_html('<a href="{}" class="">{}</a>', view_url, obj.mdn.mdn_id)
         return None
 
-    mdn_url.allow_tags = True
     mdn_url.short_description = "MDN"
 
     @staticmethod
@@ -212,7 +211,6 @@ class MessageAdmin(admin.ModelAdmin):
             )
         return None
 
-    download_file.allow_tags = True
     download_file.short_description = "Payload"
 
     def has_add_permission(self, request):

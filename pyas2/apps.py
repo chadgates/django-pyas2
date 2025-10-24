@@ -6,6 +6,7 @@ class Pyas2Config(AppConfig):
 
     name = "pyas2"
     verbose_name = "pyAS2 File Transfer Server"
+    default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self):
         # Import signal handlers to register them
