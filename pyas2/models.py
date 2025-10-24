@@ -29,18 +29,14 @@ from threading import Thread
 
 
 # Check if running Django >= 4.2
-if django.VERSION >= (4, 2):
-    try:
-        from django.core.files.storage import storages  # noqa: E0611
+try:
+    from django.core.files.storage import storages  # noqa: E0611
 
-        as2files_storage = storages[
-            "as2files"
-        ]  # Use 'as2files' storage if defined in Django 4.2+
-    except KeyError:
-        # If 'as2files' is not configured, fallback to default storage
-        as2files_storage = default_storage
-else:
-    # In Django 4.1 or lower, fallback to default storage
+    as2files_storage = storages[
+        "as2files"
+    ]  # Use 'as2files' storage if defined in Django 4.2+
+except KeyError:
+    # If 'as2files' is not configured, fallback to default storage
     as2files_storage = default_storage
 
 logger = logging.getLogger("pyas2")

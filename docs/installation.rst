@@ -1,7 +1,27 @@
 Installation
 ============
 
-Install using ``pip``...
+For Development
+---------------
+
+Clone the repository and install with ``uv``...
+
+.. code-block:: console
+
+    $ git clone https://github.com/abhishek-ram/django-pyas2.git
+    $ cd django-pyas2
+    $ uv sync --group test
+
+For Production
+--------------
+
+Install the published package using ``uv``...
+
+.. code-block:: console
+
+    $ uv pip install django-pyas2
+
+Or using ``pip``...
 
 .. code-block:: console
 

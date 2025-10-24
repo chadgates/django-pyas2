@@ -25,7 +25,7 @@ Populate the Dockerfile with following content:
 
 .. code-block:: docker
 
-    FROM python:3.7-alpine3.9
+    FROM python:3.13-alpine
 
     # Update the index of available packages
     RUN apk update
@@ -33,8 +33,11 @@ Populate the Dockerfile with following content:
     # Install packages required for Python cryptography
     RUN apk add --no-cache openssl-dev gcc libffi-dev musl-dev
 
-    # Install django-pyas2 with pip
-    RUN pip install django-pyas2
+    # Install uv
+    RUN pip install uv
+
+    # Install django-pyas2 with uv
+    RUN uv pip install --system django-pyas2
 
     # Copy the files from the project directory to the container
     WORKDIR /
