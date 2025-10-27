@@ -1,42 +1,39 @@
 import logging
 import os
 
+from asgiref.sync import sync_to_async
 from django.contrib import messages
-from django.shortcuts import Http404
-from django.shortcuts import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import Http404, HttpResponse, get_object_or_404
+from django.urls import reverse_lazy
+from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
-from django.urls import reverse_lazy
 from django.views import View
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import FormView
-from django.utils.crypto import get_random_string
-from pyas2lib import Message as As2Message
 from pyas2lib import Mdn as As2Mdn
+from pyas2lib import Message as As2Message
 from pyas2lib import Organization as As2Organization
 from pyas2lib import Partner as As2Partner
-from pyas2lib.exceptions import DecryptionError
-from pyas2lib.exceptions import DuplicateDocument
-from pyas2lib.exceptions import IntegrityError
+from pyas2lib.exceptions import DecryptionError, DuplicateDocument, IntegrityError
 
+from pyas2 import settings
 from pyas2.caching import (
     get_cached_organizations_by_as2_name,
     get_cached_partners_by_as2_name,
     get_cached_partnerships_by_as2_name,
 )
-from pyas2.models import Mdn
-from pyas2.models import Message
-from pyas2.models import Organization
-from pyas2.models import Partner
-from pyas2.models import Partnership
-from pyas2.models import PrivateKey
-from pyas2.models import PublicCertificate
-from pyas2.utils import run_post_receive
-from pyas2.utils import run_post_send
 from pyas2.forms import SendAs2MessageForm
-from pyas2 import settings
+from pyas2.models import (
+    Mdn,
+    Message,
+    Partner,
+    Partnership,
+    PrivateKey,
+    PublicCertificate,
+)
+from pyas2.utils import run_post_receive, run_post_send
 
 logger = logging.getLogger("pyas2")
 
@@ -46,16 +43,27 @@ class ReceiveAs2Message(View):
     """
     Class receives AS2 requests from partners.
     Checks whether its an AS2 message or an MDN and acts accordingly.
+    Supports both sync (WSGI) and async (ASGI) execution.
     """
 
     @staticmethod
     def find_message(message_id, partner_id):
-        """Find the message using the message_id  and return its pyas2 type"""
+        """Find the message using the message_id and return its pyas2 type"""
         message = Message.objects.filter(
             message_id=message_id, partner_id=partner_id.strip()
         ).first()
         if message:
             return message.as2message
+        return None
+
+    @staticmethod
+    async def afind_message(message_id, partner_id):
+        """Async version: Find the message using the message_id and return its pyas2 type"""
+        message = await Message.objects.filter(
+            message_id=message_id, partner_id=partner_id.strip()
+        ).afirst()
+        if message:
+            return await sync_to_async(lambda: message.as2message)()
         return None
 
     @staticmethod
@@ -71,11 +79,30 @@ class ReceiveAs2Message(View):
             return False
 
     @staticmethod
+    async def acheck_success_message_exists(message_id, partner_id):
+        """Async version: Check if the message already exists in the system"""
+        if settings.ERROR_ON_DUPLICATE:
+            return await Message.objects.filter(
+                message_id=message_id,
+                partner_id=partner_id.strip(),
+                status__in=("S", "P"),
+            ).aexists()
+        else:
+            return False
+
+    @staticmethod
     def check_same_message_exists(message_id, partner_id):
         """Check if the message already exists in the system"""
         return Message.objects.filter(
             message_id=message_id, partner_id=partner_id.strip()
         ).exists()
+
+    @staticmethod
+    async def acheck_same_message_exists(message_id, partner_id):
+        """Async version: Check if the message already exists in the system"""
+        return await Message.objects.filter(
+            message_id=message_id, partner_id=partner_id.strip()
+        ).aexists()
 
     @staticmethod
     def find_organization(org_id):
@@ -122,10 +149,25 @@ class ReceiveAs2Message(View):
         )
         return org.as2org if org else None, partner.as2partner if partner else None
 
+    @staticmethod
+    async def afind_alternative_partnership(org_id, partner_id):
+        """Async version: Find alternative partnership using swapped keys"""
+        org, partner = await Partnership.objects.aget_as2_org_partner_swap(
+            as2_name_org=org_id, as2_name_partner=partner_id
+        )
+        return (
+            await sync_to_async(lambda: org.as2org)() if org else None,
+            await sync_to_async(lambda: partner.as2partner)() if partner else None,
+        )
+
     @xframe_options_exempt
     @csrf_exempt
-    def post(self, request, *args, **kwargs):
-        """Handle the post message received by the AS2 server."""
+    async def post(self, request, *args, **kwargs):
+        """
+        Handle POST requests to the AS2 server.
+        This async method works in both WSGI (sync) and ASGI (async) environments.
+        Django automatically wraps it with async_to_sync in WSGI contexts.
+        """
         # extract the  headers from the http request
         as2headers = ""
         for key in request.META:
@@ -147,7 +189,10 @@ class ReceiveAs2Message(View):
         as2mdn = As2Mdn()
 
         # Parse the mdn and get the message status
-        status, detailed_status = as2mdn.parse(request_body, self.find_message)
+        # Note: as2mdn.parse is sync and expects sync callbacks, so we use find_message (not afind_message)
+        status, detailed_status = await sync_to_async(as2mdn.parse)(
+            request_body, self.find_message
+        )
 
         if not detailed_status == "mdn-not-found":
             if detailed_status == "original-message-not-found":
@@ -159,9 +204,9 @@ class ReceiveAs2Message(View):
                     _("AS2 ASYNC MDN has been received for unknown message.")
                 )
 
-            message = Message.objects.select_related("organization", "partner").get(
-                message_id=as2mdn.orig_message_id, direction="OUT"
-            )
+            message = await Message.objects.select_related(
+                "organization", "partner"
+            ).aget(message_id=as2mdn.orig_message_id, direction="OUT")
             logger.info(
                 f"Asynchronous MDN received for AS2 message {as2mdn.message_id} to organization "
                 f"{message.organization.as2_name} from partner {message.partner.as2_name}"
@@ -170,22 +215,25 @@ class ReceiveAs2Message(View):
             # Update the message status and return the response
             if status == "processed":
                 message.status = "S"
-                run_post_send(message)
+                await sync_to_async(run_post_send)(message)
             else:
                 message.status = "E"
                 message.detailed_status = (
                     f"Partner failed to process message: {detailed_status}"
                 )
             # Save the message and create the mdn
-            message.save()
-            Mdn.objects.create_from_as2mdn(as2mdn=as2mdn, message=message, status="R")
+            await message.asave()
+            await Mdn.objects.acreate_from_as2mdn(
+                as2mdn=as2mdn, message=message, status="R"
+            )
 
             return HttpResponse(_("AS2 ASYNC MDN has been received"))
 
         else:
             logger.debug("Payload is not an MDN parse it as an AS2 Message")
             as2message = As2Message()
-            status, exception, as2mdn = as2message.parse(
+            # Note: as2message.parse is sync and expects sync callbacks
+            status, exception, as2mdn = await sync_to_async(as2message.parse)(
                 request_body,
                 find_org_partner_cb=self.find_partnership,
                 find_message_cb=self.check_success_message_exists,
@@ -194,7 +242,7 @@ class ReceiveAs2Message(View):
             if isinstance(exception[0], DecryptionError) or isinstance(
                 exception[0], IntegrityError
             ):
-                status, exception, as2mdn = as2message.parse(
+                status, exception, as2mdn = await sync_to_async(as2message.parse)(
                     request_body,
                     find_org_partner_cb=self.find_alternative_partnership,
                     find_message_cb=self.check_success_message_exists,
@@ -209,7 +257,7 @@ class ReceiveAs2Message(View):
             # In case of duplicates update message id
             if isinstance(exception[0], DuplicateDocument) or (
                 not settings.ERROR_ON_DUPLICATE
-                and self.check_same_message_exists(
+                and await sync_to_async(self.check_same_message_exists)(
                     message_id=as2message.message_id,
                     partner_id=as2message.headers.get("as2-from"),
                 )
@@ -217,7 +265,7 @@ class ReceiveAs2Message(View):
                 as2message.message_id += "_duplicate_" + get_random_string(5)
 
             # Create the Message and MDN objects
-            message, full_fn = Message.objects.create_from_as2message(
+            message, full_fn = await Message.objects.acreate_from_as2message(
                 as2message=as2message,
                 filename=as2message.payload.get_filename(),
                 payload=as2message.content,
@@ -228,15 +276,16 @@ class ReceiveAs2Message(View):
 
             # run post receive command on success
             if status == "processed":
-                run_post_receive(message,
-                                 full_fn,
-                                 as2message.headers.get("as2-to"),
-                                 as2message.headers.get("as2-from"),
-                                 )
+                await sync_to_async(run_post_receive)(
+                    message,
+                    full_fn,
+                    as2message.headers.get("as2-to"),
+                    as2message.headers.get("as2-from"),
+                )
 
             # Return the mdn in case of sync else return text message
             if as2mdn and as2mdn.mdn_mode == "SYNC":
-                message.mdn = Mdn.objects.create_from_as2mdn(
+                message.mdn = await Mdn.objects.acreate_from_as2mdn(
                     as2mdn=as2mdn, message=message, status="S"
                 )
                 response = HttpResponse(as2mdn.content)
@@ -245,7 +294,7 @@ class ReceiveAs2Message(View):
                 return response
 
             elif as2mdn and as2mdn.mdn_mode == "ASYNC":
-                Mdn.objects.create_from_as2mdn(
+                await Mdn.objects.acreate_from_as2mdn(
                     as2mdn=as2mdn,
                     message=message,
                     status="P",
@@ -253,14 +302,20 @@ class ReceiveAs2Message(View):
                 )
             return HttpResponse(_("AS2 message has been received"))
 
-    def get(self, request, *args, **kwargs):
-        """Handle the GET call made to the AS2 server post endpoint."""
+    async def get(self, request, *args, **kwargs):
+        """
+        Handle GET requests to the AS2 server.
+        This async method works in both WSGI (sync) and ASGI (async) environments.
+        """
         return HttpResponse(
             _("To submit an AS2 message, you must POST the message to this URL")
         )
 
-    def options(self, request, *args, **kwargs):
-        """Handle the OPTIONS call made to the AS2 server post endpoint."""
+    async def options(self, request, *args, **kwargs):
+        """
+        Handle OPTIONS requests to the AS2 server.
+        This async method works in both WSGI (sync) and ASGI (async) environments.
+        """
         response = HttpResponse()
         response["allow"] = ",".join(["POST", "GET"])
         return response

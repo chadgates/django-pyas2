@@ -69,7 +69,7 @@ class OrganizationCacheTests(TestCase):
     def setUp(self):
         cache.delete(ORGANIZATION_CACHE_KEY)
         # Ensure signal registration.
-        from pyas2 import signals
+        # from pyas2 import signals
 
     def test_organization_cache_update_on_create(self):
         org = Organization.objects.create(
@@ -164,7 +164,7 @@ class PartnerCacheTests(TestCase):
 
     def setUp(self):
         cache.delete(PARTNER_CACHE_KEY)
-        from pyas2 import signals
+        # from pyas2 import signals
 
     def test_partner_cache_update_on_create(self):
         partner = Partner.objects.create(

@@ -62,8 +62,8 @@ Features
 
 Dependencies
 ============
-* Python 3.6+
-* Django (1.9+)
+* Python 3.13+
+* Django (5.2+)
 * requests
 * pyas2lib
 
@@ -75,6 +75,7 @@ Guide
    installation
    quickstart
    detailed-guide/index
+   testing
    changelog
 
 .. _`RFC 4130`: https://www.ietf.org/rfc/rfc4130.txt

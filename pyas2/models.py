@@ -6,10 +6,9 @@ import traceback
 from email.parser import HeaderParser
 from uuid import uuid4
 
-import django
-import requests
 import httpx
-
+import requests
+from asgiref.sync import sync_to_async
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import models
@@ -23,10 +22,6 @@ from pyas2lib.utils import extract_certificate_info
 
 from pyas2 import settings
 from pyas2.utils import run_post_send
-
-from asgiref.sync import sync_to_async
-from threading import Thread
-
 
 # Check if running Django >= 4.2
 try:
@@ -53,12 +48,15 @@ def save_payload_sync(message, filename, payload):
     content_file = ContentFile(payload)
     message.payload.save(name=filename, content=content_file)
 
+
 async def save_payload_async(message, filename, payload):
     return await sync_to_async(message.payload.save)(name=filename, content=ContentFile(payload))
+
 
 def save_headers_sync(message, filename, headers_str):
     content_file = ContentFile(headers_str)
     message.headers.save(name=filename, content=content_file)
+
 
 async def save_headers_async_wrapper(message, filename, headers_str):
     return await sync_to_async(message.headers.save)(name=f"{filename}.header", content=ContentFile(headers_str))
@@ -520,12 +518,6 @@ class MessageManager(models.Manager):
             ),
         )
 
-        # if created:
-        #     try:
-        #         message = await self.select_related("partner").aget(message_id=message.message_id, partner_id=partner, organization_id=organization)
-        #     except Message.MultipleObjectsReturned:
-        #         pass
-
         # Save the headers and payload to store
         if not filename:
             filename = f"{uuid4()}.msg"
@@ -535,17 +527,20 @@ class MessageManager(models.Manager):
             content=ContentFile(as2message.headers_str),
             save=False,
         )
-        message.payload.save(name=filename, content=ContentFile(payload), save=False)
+        message.payload.save(
+            name=filename,
+            content=ContentFile(payload),
+            save=False
+        )
         await message.asave()
-
-        # await save_headers_async_wrapper(message=message, filename=f"{filename}.header", headers_str=as2message.headers_str)
-        # await save_payload_async(message=message, filename=filename, payload=payload)
 
         # Save the payload to the inbox folder
         full_filename = None
         if direction == "IN" and status == "S":
             dirname = os.path.join("messages", organization, "inbox", partner)
-            if not message.partner.keep_filename or not filename:
+            # Fetch partner's keep_filename setting using async
+            partner_obj = await Partner.objects.only('keep_filename').aget(as2_name=partner)
+            if not partner_obj.keep_filename or not filename:
                 filename = f"{message.message_id}.msg"
 
             full_filename = as2files_storage.generate_filename(
@@ -554,6 +549,7 @@ class MessageManager(models.Manager):
             as2files_storage.save(name=full_filename, content=ContentFile(payload))
 
         return message, full_filename
+
 
 def get_message_store(instance, filename):
     """Return the path for storing the message payload."""
@@ -1035,6 +1031,40 @@ class PartnershipManager(models.Manager):
             )
             if partnership:
                 if partnership.swap_org_key(persist=partnership.organization_auto_swap):
+                    org = partnership
+        return org, partner
+
+    async def aget_as2_org_partner_swap(self, as2_name_org, as2_name_partner):
+        """Async version of get_as2_org_partner_swap"""
+        org = await (
+            Organization.objects.select_related(
+                "encryption_key",
+                "signature_key",
+                "encryption_key_alt",
+                "signature_key_alt",
+            )
+            .filter(as2_name=as2_name_org)
+            .afirst()
+        )
+        partner = await (
+            Partner.objects.select_related("encryption_cert", "signature_cert")
+            .filter(as2_name=as2_name_partner)
+            .afirst()
+        )
+        if org and partner:
+            partnership = await (
+                Partnership.objects.select_related(
+                    "organization",
+                    "organization__signature_key",
+                    "organization__signature_key_alt",
+                    "organization__encryption_key",
+                    "organization__encryption_key_alt",
+                )
+                .filter(partner=partner, organization=org)
+                .afirst()
+            )
+            if partnership:
+                if await sync_to_async(partnership.swap_org_key)(persist=partnership.organization_auto_swap):
                     org = partnership
         return org, partner
 

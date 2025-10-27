@@ -1,23 +1,21 @@
-import importlib
 import os
 from unittest import mock
 
-from django.test import Client, override_settings
-from django.test import TestCase
+from django.test import Client, TestCase
 from pyas2lib import Message as As2Message
 
-from pyas2 import settings
-from pyas2.models import Message
-from pyas2.models import Mdn
-from pyas2.models import Organization
-from pyas2.models import Partner
-from pyas2.models import Partnership
-from pyas2.models import PrivateKey
-from pyas2.models import PublicCertificate
-from pyas2.tests.test_basic import SendMessageMock
-from pyas2.tests import TEST_DIR
-
 from pyas2.caching import clear_pyas2_cache
+from pyas2.models import (
+    Mdn,
+    Message,
+    Organization,
+    Partner,
+    Partnership,
+    PrivateKey,
+    PublicCertificate,
+)
+from pyas2.tests import TEST_DIR
+from pyas2.tests.test_basic import SendMessageMock
 
 
 class AlternativeCertTestCases(TestCase):
