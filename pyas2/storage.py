@@ -85,11 +85,25 @@ class AsyncFileSystemStorage(FileSystemStorage):
             The relative filename from storage root that was saved
         """
         # Create directory if it doesn't exist
+        # Match Django's behavior: pass mode to makedirs() which only applies
+        # permissions to newly created directories, not existing ones
         if directory:
             try:
-                await aiofiles.os.makedirs(directory, exist_ok=True)
+                if self.directory_permissions_mode is not None:
+                    # Reset umask for consistency with file_permissions_mode behavior
+                    # (Django does this to ensure the mode is applied exactly as specified)
+                    old_umask = os.umask(0)
+                    try:
+                        await aiofiles.os.makedirs(
+                            directory, mode=self.directory_permissions_mode, exist_ok=True
+                        )
+                    finally:
+                        os.umask(old_umask)
+                else:
+                    # No directory permissions specified, use default
+                    await aiofiles.os.makedirs(directory, exist_ok=True)
             except FileExistsError:
-                # Another thread/coroutine created it
+                # Another thread/coroutine created it, that's fine
                 pass
 
         # Write the file using aiofiles

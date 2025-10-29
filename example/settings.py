@@ -138,19 +138,12 @@ if env.bool("USE_S3_FILE_STORAGE", False):
 # Django 5.2+ STORAGES configuration
 # Using AsyncFileSystemStorage for true async file I/O
 STORAGES = {
-    "default": {
-        "BACKEND": "pyas2.storage.AsyncFileSystemStorage",
-        "OPTIONS": {
-            "location": os.path.join(BASE_DIR, "data"),
-        },
-    },
     "as2files": {
         "BACKEND": "pyas2.storage.AsyncFileSystemStorage",
         "OPTIONS": {
             "location": os.path.join(BASE_DIR, "data"),
+            "file_permissions_mode": 0o666,
+            "directory_permissions_mode": 0o777,
         },
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
