@@ -20,6 +20,9 @@ from pyas2lib.exceptions import DecryptionError, DuplicateDocument, IntegrityErr
 
 from pyas2 import settings
 from pyas2.caching import (
+    aget_cached_organizations_by_as2_name,
+    aget_cached_partners_by_as2_name,
+    aget_cached_partnerships_by_as2_name,
     get_cached_organizations_by_as2_name,
     get_cached_partners_by_as2_name,
     get_cached_partnerships_by_as2_name,
@@ -141,6 +144,41 @@ class ReceiveAs2Message(View):
         ), ReceiveAs2Message.find_partner(partner_id)
 
         # return org.as2org if org else None, partner.as2partner if partner else None
+
+    @staticmethod
+    async def afind_organization(org_id):
+        """Async version: Find the org using the As2 Id and return its pyas2 type"""
+        org_data = await aget_cached_organizations_by_as2_name(org_id)
+        if org_data:
+            # Return the computed as2org representation from the cached dictionary.
+            return As2Organization(**org_data.get("as2org_params"))
+        return None
+
+    @staticmethod
+    async def afind_partner(partner_id):
+        """
+        Async version: Find the partner by its as2_name using the cache.
+        The cached data is stored as a dictionary keyed by the partner's as2_name.
+        """
+        partner_data = await aget_cached_partners_by_as2_name(partner_id)
+        if partner_data:
+            return As2Partner(**partner_data.get("as2partner_params"))
+        return None
+
+    @staticmethod
+    async def afind_partnership(org_id, partner_id):
+        """
+        Async version: Find the partnership by its as2_name using the cache.
+        """
+        partnership_data = await aget_cached_partnerships_by_as2_name(org_id, partner_id)
+        if partnership_data:
+            return As2Organization(**partnership_data.get("as2org_params")), As2Partner(
+                **partnership_data.get("as2partner_params")
+            )
+
+        return await ReceiveAs2Message.afind_organization(
+            org_id
+        ), await ReceiveAs2Message.afind_partner(partner_id)
 
     @staticmethod
     def find_alternative_partnership(org_id, partner_id):

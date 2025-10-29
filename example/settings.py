@@ -134,3 +134,23 @@ if env.bool("USE_S3_FILE_STORAGE", False):
     AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')
     AWS_LOCATION = 'pyas2_data'
     AWS_DEFAULT_ACL = None
+
+# Django 5.2+ STORAGES configuration
+# Using AsyncFileSystemStorage for true async file I/O
+STORAGES = {
+    "default": {
+        "BACKEND": "pyas2.storage.AsyncFileSystemStorage",
+        "OPTIONS": {
+            "location": os.path.join(BASE_DIR, "data"),
+        },
+    },
+    "as2files": {
+        "BACKEND": "pyas2.storage.AsyncFileSystemStorage",
+        "OPTIONS": {
+            "location": os.path.join(BASE_DIR, "data"),
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}

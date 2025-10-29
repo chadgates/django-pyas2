@@ -17,9 +17,9 @@ from pyas2lib import Partner as As2Partner
 logger = logging.getLogger("pyas2")
 
 from pyas2.caching import (
-    get_cached_partnerships_by_as2_name,
-    get_cached_organizations_by_as2_name,
-    get_cached_partners_by_as2_name,
+    aget_cached_partnerships_by_as2_name,
+    aget_cached_organizations_by_as2_name,
+    aget_cached_partners_by_as2_name,
 )
 
 from asgiref.sync import sync_to_async
@@ -27,11 +27,11 @@ from asgiref.sync import sync_to_async
 
 async def main(*args, **options):
     # Check if organization and partner exists
-    partnership = await sync_to_async(get_cached_partnerships_by_as2_name)(options["org_as2name"],
-                                                      options["partner_as2name"])
+    partnership = await aget_cached_partnerships_by_as2_name(options["org_as2name"],
+                                                              options["partner_as2name"])
 
-    org = await sync_to_async(get_cached_organizations_by_as2_name)(options["org_as2name"])
-    partner = await sync_to_async(get_cached_partners_by_as2_name)(options["partner_as2name"])
+    org = await aget_cached_organizations_by_as2_name(options["org_as2name"])
+    partner = await aget_cached_partners_by_as2_name(options["partner_as2name"])
 
     if partnership:
         as2_sender = As2Organization(**partnership.get("as2org_params"))
