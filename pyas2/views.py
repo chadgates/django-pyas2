@@ -20,6 +20,9 @@ from pyas2lib.exceptions import DecryptionError, DuplicateDocument, IntegrityErr
 
 from pyas2 import settings
 from pyas2.caching import (
+    aget_cached_organizations_by_as2_name,
+    aget_cached_partners_by_as2_name,
+    aget_cached_partnerships_by_as2_name,
     get_cached_organizations_by_as2_name,
     get_cached_partners_by_as2_name,
     get_cached_partnerships_by_as2_name,
@@ -53,7 +56,7 @@ class ReceiveAs2Message(View):
             message_id=message_id, partner_id=partner_id.strip()
         ).first()
         if message:
-            return message.as2message
+            return message.get_as2message()
         return None
 
     @staticmethod
@@ -63,7 +66,7 @@ class ReceiveAs2Message(View):
             message_id=message_id, partner_id=partner_id.strip()
         ).afirst()
         if message:
-            return await sync_to_async(lambda: message.as2message)()
+            return await message.aget_as2message()
         return None
 
     @staticmethod
@@ -143,6 +146,41 @@ class ReceiveAs2Message(View):
         # return org.as2org if org else None, partner.as2partner if partner else None
 
     @staticmethod
+    async def afind_organization(org_id):
+        """Async version: Find the org using the As2 Id and return its pyas2 type"""
+        org_data = await aget_cached_organizations_by_as2_name(org_id)
+        if org_data:
+            # Return the computed as2org representation from the cached dictionary.
+            return As2Organization(**org_data.get("as2org_params"))
+        return None
+
+    @staticmethod
+    async def afind_partner(partner_id):
+        """
+        Async version: Find the partner by its as2_name using the cache.
+        The cached data is stored as a dictionary keyed by the partner's as2_name.
+        """
+        partner_data = await aget_cached_partners_by_as2_name(partner_id)
+        if partner_data:
+            return As2Partner(**partner_data.get("as2partner_params"))
+        return None
+
+    @staticmethod
+    async def afind_partnership(org_id, partner_id):
+        """
+        Async version: Find the partnership by its as2_name using the cache.
+        """
+        partnership_data = await aget_cached_partnerships_by_as2_name(org_id, partner_id)
+        if partnership_data:
+            return As2Organization(**partnership_data.get("as2org_params")), As2Partner(
+                **partnership_data.get("as2partner_params")
+            )
+
+        return await ReceiveAs2Message.afind_organization(
+            org_id
+        ), await ReceiveAs2Message.afind_partner(partner_id)
+
+    @staticmethod
     def find_alternative_partnership(org_id, partner_id):
         org, partner = Partnership.objects.get_as2_org_partner_swap(
             as2_name_org=org_id, as2_name_partner=partner_id
@@ -190,8 +228,8 @@ class ReceiveAs2Message(View):
 
         # Parse the mdn and get the message status
         # Note: as2mdn.parse is sync and expects sync callbacks, so we use find_message (not afind_message)
-        status, detailed_status = await sync_to_async(as2mdn.parse)(
-            request_body, self.find_message
+        status, detailed_status = await as2mdn.aparse(
+            request_body, self.afind_message
         )
 
         if not detailed_status == "mdn-not-found":
@@ -232,20 +270,20 @@ class ReceiveAs2Message(View):
         else:
             logger.debug("Payload is not an MDN parse it as an AS2 Message")
             as2message = As2Message()
-            # Note: as2message.parse is sync and expects sync callbacks
-            status, exception, as2mdn = await sync_to_async(as2message.parse)(
+
+            status, exception, as2mdn = await as2message.aparse(
                 request_body,
-                find_org_partner_cb=self.find_partnership,
-                find_message_cb=self.check_success_message_exists,
+                find_org_partner_cb=self.afind_partnership,
+                find_message_cb=self.acheck_success_message_exists,
             )
 
             if isinstance(exception[0], DecryptionError) or isinstance(
                 exception[0], IntegrityError
             ):
-                status, exception, as2mdn = await sync_to_async(as2message.parse)(
+                status, exception, as2mdn = await as2message.aparse(
                     request_body,
-                    find_org_partner_cb=self.find_alternative_partnership,
-                    find_message_cb=self.check_success_message_exists,
+                    find_org_partner_cb=self.afind_alternative_partnership,
+                    find_message_cb=self.acheck_success_message_exists,
                 )
 
             logger.info(
@@ -257,7 +295,7 @@ class ReceiveAs2Message(View):
             # In case of duplicates update message id
             if isinstance(exception[0], DuplicateDocument) or (
                 not settings.ERROR_ON_DUPLICATE
-                and await sync_to_async(self.check_same_message_exists)(
+                and await self.acheck_same_message_exists(
                     message_id=as2message.message_id,
                     partner_id=as2message.headers.get("as2-from"),
                 )

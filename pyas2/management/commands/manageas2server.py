@@ -49,7 +49,7 @@ def cleanup_pid_file(pid_file, stdout):
 
 
 def find_original_message(message, was_signed):
-    as2message = message.as2message
+    as2message = message.get_as2message()
     if was_signed and as2message.receiver.mdn_digest_alg:
         as2message.receiver.mdn_digest_alg = None
     return as2message

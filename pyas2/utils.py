@@ -21,7 +21,7 @@ def run_post_send(message):
             "receiver": message.partner.as2_name,
             "messageid": message.message_id,
         }
-        variables.update(message.as2message.headers)
+        variables.update(message.get_as2message().headers)
 
         # Execute the command
         os.system(command.safe_substitute(variables))
@@ -53,7 +53,7 @@ def run_post_receive(message, full_filename, org_as2id, partner_as2id):
             "receiver": org_as2id,
             "messageid": message.message_id,
         }
-        variables.update(message.as2message.headers)
+        variables.update(message.get_as2message().headers)
 
         # Execute the command
         os.system(command.safe_substitute(variables))

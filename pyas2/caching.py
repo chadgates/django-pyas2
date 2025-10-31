@@ -1,5 +1,6 @@
 from django.core.cache import cache
 from django.forms.models import model_to_dict
+from asgiref.sync import sync_to_async
 
 from pyas2.models import Organization, Partner, Partnership
 
@@ -224,3 +225,40 @@ def clear_pyas2_cache():
     cache.delete(PARTNER_CACHE_KEY)
     cache.delete(ORGANIZATION_CACHE_KEY)
     cache.delete(PARTNERSHIP_CACHE_KEY)
+
+
+# ----------------------------
+# Async Cache Wrapper Functions
+# ----------------------------
+
+
+async def aget_cached_partners():
+    """Async wrapper for get_cached_partners"""
+    return await sync_to_async(get_cached_partners)()
+
+
+async def aget_cached_partners_by_as2_name(as2_name):
+    """Async wrapper for get_cached_partners_by_as2_name"""
+    return await sync_to_async(get_cached_partners_by_as2_name)(as2_name)
+
+
+async def aget_cached_organizations():
+    """Async wrapper for get_cached_organizations"""
+    return await sync_to_async(get_cached_organizations)()
+
+
+async def aget_cached_organizations_by_as2_name(as2_name):
+    """Async wrapper for get_cached_organizations_by_as2_name"""
+    return await sync_to_async(get_cached_organizations_by_as2_name)(as2_name)
+
+
+async def aget_cached_partnerships():
+    """Async wrapper for get_cached_partnerships"""
+    return await sync_to_async(get_cached_partnerships)()
+
+
+async def aget_cached_partnerships_by_as2_name(org_as2_name, partner_as2_name):
+    """Async wrapper for get_cached_partnerships_by_as2_name"""
+    return await sync_to_async(get_cached_partnerships_by_as2_name)(
+        org_as2_name, partner_as2_name
+    )

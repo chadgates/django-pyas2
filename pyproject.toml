@@ -8,7 +8,7 @@ dependencies = [
     "django>=5.2.7",
     "httpx==0.28.1",
     "psutil==6.1.0",
-    "pyas2lib @ file:///${PROJECT_ROOT}/requirements/pyas2-lib-cargoo.zip",
+    "pyas2lib @ file:///${PROJECT_ROOT}/requirements/pyas2-lib-cargoo-async.zip",
     # "pyas2lib==1.4.3",
     "requests==2.25.1",
     "setuptools>=80.9.0",
