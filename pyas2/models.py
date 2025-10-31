@@ -486,6 +486,22 @@ class MessageManager(models.Manager):
 
         return message, full_filename
 
+    def _save_message_files(self, message, filename, headers_str, payload):
+        """
+        Helper method to save message files synchronously.
+        This runs in a thread pool when called from async context.
+        """
+        message.headers.save(
+            name=f"{filename}.header",
+            content=ContentFile(headers_str),
+            save=False,
+        )
+        message.payload.save(
+            name=filename,
+            content=ContentFile(payload),
+            save=False
+        )
+
     async def acreate_from_as2message(
         self,
         as2message,
@@ -522,15 +538,9 @@ class MessageManager(models.Manager):
         if not filename:
             filename = f"{uuid4()}.msg"
 
-        message.headers.save(
-            name=f"{filename}.header",
-            content=ContentFile(as2message.headers_str),
-            save=False,
-        )
-        message.payload.save(
-            name=filename,
-            content=ContentFile(payload),
-            save=False
+        # Run file operations in thread pool to avoid blocking event loop
+        await sync_to_async(self._save_message_files)(
+            message, filename, as2message.headers_str, payload
         )
         await message.asave()
 
@@ -546,7 +556,10 @@ class MessageManager(models.Manager):
             full_filename = as2files_storage.generate_filename(
                 posixpath.join(dirname, filename)
             )
-            as2files_storage.save(name=full_filename, content=ContentFile(payload))
+            # Run storage save in thread pool to avoid blocking event loop
+            await sync_to_async(as2files_storage.save)(
+                name=full_filename, content=ContentFile(payload)
+            )
 
         return message, full_filename
 
@@ -893,6 +906,22 @@ class MdnManager(models.Manager):
         mdn.save()
         return mdn
 
+    def _save_mdn_files(self, mdn, filename, headers_str, content):
+        """
+        Helper method to save MDN files synchronously.
+        This runs in a thread pool when called from async context.
+        """
+        mdn.headers.save(
+            name=f"{filename}.header",
+            content=ContentFile(headers_str),
+            save=False,
+        )
+        mdn.payload.save(
+            filename,
+            content=ContentFile(content),
+            save=False
+        )
+
     async def acreate_from_as2mdn(self, as2mdn, message, status, return_url=None):
         """Create the MDN from the pyas2lib's MDN object"""
         signed = bool(as2mdn.digest_alg)
@@ -917,12 +946,11 @@ class MdnManager(models.Manager):
             ),
         )
         filename = f"{uuid4()}.mdn"
-        mdn.headers.save(
-            name=f"{filename}.header",
-            content=ContentFile(as2mdn.headers_str),
-            save=False,
+
+        # Run file operations in thread pool to avoid blocking event loop
+        await sync_to_async(self._save_mdn_files)(
+            mdn, filename, as2mdn.headers_str, as2mdn.content
         )
-        mdn.payload.save(filename, content=ContentFile(as2mdn.content), save=False)
         await mdn.asave()
         return mdn
 
