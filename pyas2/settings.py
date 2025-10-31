@@ -34,7 +34,7 @@ READ_TIMEOUT = APP_SETTINGS.get("READ_TIMEOUT", 60)
 
 if django.VERSION >= (4, 2) and "as2files" not in settings.STORAGES:
     settings.STORAGES["as2files"] = {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "pyas2.storage.AsyncFileSystemStorage",
         "OPTIONS": {
             "location": DATA_DIR,
             "file_permissions_mode": 0o666,
