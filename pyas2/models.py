@@ -620,18 +620,24 @@ class Message(models.Model):
         """Define additional options for the Message model."""
 
         unique_together = ("message_id", "partner")
+        indexes = [
+            models.Index(
+                fields=['message_id', 'organization', 'partner'],
+                name='message_lookup_idx'
+            ),
+        ]
 
     @property
     def as2message(self):
         """Returns an object of pyas2lib's Message class"""
         if self.direction == "IN":
             org, partner = Partnership.objects.get_as2_org_partner(
-                self.organization.as2_name, self.partner.as2_name
+                self.organization_id, self.partner_id
             )
             as2m = As2Message(sender=partner.as2partner, receiver=org.as2org)
         else:
             org, partner = Partnership.objects.get_as2_org_partner(
-                self.organization.as2_name, self.partner.as2_name
+                self.organization_id, self.partner_id
             )
             as2m = As2Message(sender=org.as2org, receiver=partner.as2partner)
 
@@ -946,6 +952,16 @@ class Mdn(models.Model):
 
     objects = MdnManager()
 
+    class Meta:
+        """Define additional options for the MDN model."""
+
+        indexes = [
+            models.Index(
+                fields=['message'],
+                name='mdn_message_idx'
+            ),
+        ]
+
     def __str__(self):
         return str(self.mdn_id)
 
@@ -974,6 +990,58 @@ class Mdn(models.Model):
 
 class PartnershipManager(models.Manager):
     def get_as2_org_partner(self, as2_name_org, as2_name_partner):
+        """
+        Returns (org_or_partnership, partner) tuple.
+        If partnership exists in cache, uses cached params instead of database queries.
+        """
+        # Lazy import to avoid circular dependency
+        from pyas2.caching import get_cached_partnerships_by_as2_name
+
+        # Try to get partnership from cache first
+        partnership_data = get_cached_partnerships_by_as2_name(
+            as2_name_org, as2_name_partner
+        )
+
+        if partnership_data:
+            # Cache hit! Build objects from cached params without DB queries
+            # Create a simple object to hold the cached organization params
+            class CachedPartnership:
+                def __init__(self, data):
+                    self._as2org_params = data['as2org_params']
+                    self._email_address = data.get('email_address')
+                    self.as2partner_params = data['as2partner_params']
+
+                @property
+                def as2org_params(self):
+                    return self._as2org_params
+
+                @property
+                def as2org(self):
+                    return As2Organization(**self._as2org_params)
+
+                @property
+                def email_address(self):
+                    return self._email_address
+
+                @property
+                def as2partner(self):
+                    return As2Partner(**self.as2partner_params)
+
+            org = CachedPartnership(partnership_data)
+
+            # Create partner object
+            class CachedPartner:
+                def __init__(self, params):
+                    self.as2partner_params = params
+
+                @property
+                def as2partner(self):
+                    return As2Partner(**self.as2partner_params)
+
+            partner = CachedPartner(partnership_data['as2partner_params'])
+            return org, partner
+
+        # Cache miss - fallback to database queries
         org = (
             Organization.objects.select_related(
                 "encryption_key",
