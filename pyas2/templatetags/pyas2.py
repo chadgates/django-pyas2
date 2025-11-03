@@ -9,5 +9,5 @@ def readfilefield(field):
     try:
         with field.open("r") as f:
             return f.read()
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         return "File not found."

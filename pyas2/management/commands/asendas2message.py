@@ -1,37 +1,39 @@
 import asyncio
 import logging
 import os
-import aiofiles
 
-from django.core.management.base import BaseCommand
-from django.core.management.base import CommandError
-from django.core.files.storage import default_storage, FileSystemStorage
+import aiofiles
+from django.core.files.storage import FileSystemStorage, default_storage
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from pyas2lib import Message as AS2Message
-
-from pyas2.models import Message
-
 from pyas2lib import Organization as As2Organization
 from pyas2lib import Partner as As2Partner
 
-logger = logging.getLogger("pyas2")
-
-from pyas2.caching import (
-    get_cached_partnerships_by_as2_name,
-    get_cached_organizations_by_as2_name,
-    get_cached_partners_by_as2_name,
-)
+from pyas2.models import Message
 
 from asgiref.sync import sync_to_async
 
+from pyas2.caching import (
+    get_cached_organizations_by_as2_name,
+    get_cached_partners_by_as2_name,
+    get_cached_partnerships_by_as2_name,
+)
+
+logger = logging.getLogger("pyas2")
 
 async def main(*args, **options):
     # Check if organization and partner exists
-    partnership = await sync_to_async(get_cached_partnerships_by_as2_name)(options["org_as2name"],
-                                                      options["partner_as2name"])
+    partnership = await sync_to_async(get_cached_partnerships_by_as2_name)(
+        options["org_as2name"], options["partner_as2name"]
+    )
 
-    org = await sync_to_async(get_cached_organizations_by_as2_name)(options["org_as2name"])
-    partner = await sync_to_async(get_cached_partners_by_as2_name)(options["partner_as2name"])
+    org = await sync_to_async(get_cached_organizations_by_as2_name)(
+        options["org_as2name"]
+    )
+    partner = await sync_to_async(get_cached_partners_by_as2_name)(
+        options["partner_as2name"]
+    )
 
     if partnership:
         as2_sender = As2Organization(**partnership.get("as2org_params"))
@@ -40,9 +42,7 @@ async def main(*args, **options):
         as2_sender = As2Organization(**org.get("as2org_params"))
         as2_receiver = As2Partner(**partner.get("as2partner_params"))
     if not org:
-        raise CommandError(
-            f'Organization "{options["org_as2name"]}" does not exist'
-        )
+        raise CommandError(f'Organization "{options["org_as2name"]}" does not exist')
 
     if not partner:
         raise CommandError(f'Partner "{options["partner_as2name"]}" does not exist')
@@ -88,7 +88,9 @@ async def main(*args, **options):
 
     # Check if we're inside an atomic block, if not, commit immediately to store the message
     if not transaction.get_connection().in_atomic_block:
-        await sync_to_async(transaction.commit)()  # Safe to commit if not in an atomic block
+        await sync_to_async(
+            transaction.commit
+        )()  # Safe to commit if not in an atomic block
 
     await message.asend_message(as2message.headers, as2message.content)
 
@@ -120,7 +122,7 @@ class Command(BaseCommand):
             help=(
                 "Optional binary payload content. If provided, this overrides reading "
                 "the file from the path specified by path_to_payload."
-            )
+            ),
         )
 
     def handle(self, *args, **options):

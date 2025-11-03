@@ -552,7 +552,7 @@ class BasicServerClientTestCase(TestCase):
         )
 
         with CaptureQueriesContext(connection) as queries:
-            in_message = self.build_and_send(partner)
+            in_message = self.build_and_send(partner)  # noqa: F841
 
             # Remove the transaction related queries
             filtered_queries = [

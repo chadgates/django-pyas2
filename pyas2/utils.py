@@ -35,7 +35,7 @@ def run_post_receive(message, full_filename, org_as2id, partner_as2id):
         from pyas2.caching import get_cached_partners_by_as2_name
         partner = get_cached_partners_by_as2_name(partner_as2id)
     else:
-        from pyas2.caching import get_cached_organizations_by_as2_name, get_cached_partners_by_as2_name
+        from pyas2.caching import get_cached_partners_by_as2_name
         partner = get_cached_partners_by_as2_name(message.partner_id)
         partner_as2id = message.partner_id
         org_as2id = message.organization_id

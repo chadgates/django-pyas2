@@ -1,12 +1,10 @@
-import importlib
 import os
 from unittest import mock
 
-from django.test import Client, override_settings
+from django.test import Client
 from django.test import TestCase
 from pyas2lib import Message as As2Message
 
-from pyas2 import settings
 from pyas2.models import Message
 from pyas2.models import Mdn
 from pyas2.models import Organization

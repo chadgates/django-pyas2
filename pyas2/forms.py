@@ -77,7 +77,7 @@ class PrivateKeyForm(forms.ModelForm):
         ext = os.path.splitext(key_file.name)[1]
         valid_extensions = [".pem", ".p12", ".pfx"]
 
-        if not ext.lower() in valid_extensions:
+        if ext.lower() not in valid_extensions:
             raise forms.ValidationError(
                 _("Unsupported key format, supported formats " "include %s.")
                 % ", ".join(valid_extensions)
@@ -133,7 +133,7 @@ class PublicCertificateForm(forms.ModelForm):
         ext = os.path.splitext(cert_file.name)[1]
         valid_extensions = [".pem", ".der", ".cer"]
 
-        if not ext.lower() in valid_extensions:
+        if ext.lower() not in valid_extensions:
             raise forms.ValidationError(
                 _("Unsupported certificate format, supported formats " "include %s.")
                 % ", ".join(valid_extensions)
@@ -149,7 +149,7 @@ class PublicCertificateForm(forms.ModelForm):
             ext = os.path.splitext(cert_ca_file.name)[1]
             valid_extensions = [".pem", ".der", ".cer", ".ca"]
 
-            if not ext.lower() in valid_extensions:
+            if ext.lower() not in valid_extensions:
                 raise forms.ValidationError(
                     _(
                         "Unsupported certificate format, supported formats "

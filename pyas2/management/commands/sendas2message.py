@@ -1,27 +1,21 @@
 import logging
 import os
 
-from django.core.management.base import BaseCommand
-from django.core.management.base import CommandError
 from django.core.files.storage import default_storage
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from pyas2lib import Message as AS2Message
-
-from pyas2.models import Message
-from pyas2.models import Organization
-from pyas2.models import Partner
-from pyas2.models import Partnership
-
 from pyas2lib import Organization as As2Organization
 from pyas2lib import Partner as As2Partner
-
-logger = logging.getLogger("pyas2")
 
 from pyas2.caching import (
     get_cached_organizations_by_as2_name,
     get_cached_partners_by_as2_name,
     get_cached_partnerships_by_as2_name,
 )
+from pyas2.models import Message
+
+logger = logging.getLogger("pyas2")
 
 
 class Command(BaseCommand):
@@ -46,7 +40,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
 
         # Check if organization and partner exists
-        partnership = get_cached_partnerships_by_as2_name(options["org_as2name"], options["partner_as2name"])
+        partnership = get_cached_partnerships_by_as2_name(
+            options["org_as2name"], options["partner_as2name"]
+        )
 
         org = get_cached_organizations_by_as2_name(options["org_as2name"])
         partner = get_cached_partners_by_as2_name(options["partner_as2name"])

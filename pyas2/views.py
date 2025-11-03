@@ -28,7 +28,6 @@ from pyas2.caching import (
 )
 from pyas2.models import Mdn
 from pyas2.models import Message
-from pyas2.models import Organization
 from pyas2.models import Partner
 from pyas2.models import Partnership
 from pyas2.models import PrivateKey
