@@ -6,10 +6,9 @@ import traceback
 from email.parser import HeaderParser
 from uuid import uuid4
 
-import django
-import requests
 import httpx
-
+import requests
+from asgiref.sync import sync_to_async
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import models
@@ -24,10 +23,6 @@ from pyas2lib.utils import extract_certificate_info
 from pyas2 import settings
 from pyas2.utils import run_post_send
 
-from asgiref.sync import sync_to_async
-from threading import Thread
-
-
 # Check if running Django >= 4.2
 try:
     from django.core.files.storage import storages  # noqa: E0611
@@ -40,28 +35,6 @@ except KeyError:
     as2files_storage = default_storage
 
 logger = logging.getLogger("pyas2")
-
-
-def save_payload_sync(message, filename, payload):
-    """
-    Synchronous wrapper to save message payload in a separate thread to avoid blocking the async loop.
-
-    :param message: The message object to save the payload to.
-    :param filename: The name of the file under which to save the payload.
-    :param payload: The payload content to save.
-    """
-    content_file = ContentFile(payload)
-    message.payload.save(name=filename, content=content_file)
-
-async def save_payload_async(message, filename, payload):
-    return await sync_to_async(message.payload.save)(name=filename, content=ContentFile(payload))
-
-def save_headers_sync(message, filename, headers_str):
-    content_file = ContentFile(headers_str)
-    message.headers.save(name=filename, content=content_file)
-
-async def save_headers_async_wrapper(message, filename, headers_str):
-    return await sync_to_async(message.headers.save)(name=f"{filename}.header", content=ContentFile(headers_str))
 
 
 class PrivateKey(models.Model):
@@ -78,7 +51,7 @@ class PrivateKey(models.Model):
         cert_info = extract_certificate_info(self.key)
         self.valid_from = cert_info["valid_from"]
         self.valid_to = cert_info["valid_to"]
-        if not cert_info["serial"] is None:
+        if cert_info["serial"] is not None:
             self.serial_number = cert_info["serial"].__str__()
         super().save(*args, **kwargs)
 
@@ -107,7 +80,7 @@ class PublicCertificate(models.Model):
         cert_info = extract_certificate_info(self.certificate)
         self.valid_from = cert_info["valid_from"]
         self.valid_to = cert_info["valid_to"]
-        if not cert_info["serial"] is None:
+        if  cert_info["serial"] is not None:
             self.serial_number = cert_info["serial"].__str__()
         super().save(*args, **kwargs)
 
@@ -447,6 +420,7 @@ class MessageManager(models.Manager):
             organization = as2message.sender.as2_name if as2message.sender else None
 
         from pyas2.caching import get_cached_partners_by_as2_name
+
         partner_dict = get_cached_partners_by_as2_name(partner)
 
         message, _ = self.update_or_create(
@@ -520,12 +494,6 @@ class MessageManager(models.Manager):
             ),
         )
 
-        # if created:
-        #     try:
-        #         message = await self.select_related("partner").aget(message_id=message.message_id, partner_id=partner, organization_id=organization)
-        #     except Message.MultipleObjectsReturned:
-        #         pass
-
         # Save the headers and payload to store
         if not filename:
             filename = f"{uuid4()}.msg"
@@ -537,9 +505,6 @@ class MessageManager(models.Manager):
         )
         message.payload.save(name=filename, content=ContentFile(payload), save=False)
         await message.asave()
-
-        # await save_headers_async_wrapper(message=message, filename=f"{filename}.header", headers_str=as2message.headers_str)
-        # await save_payload_async(message=message, filename=filename, payload=payload)
 
         # Save the payload to the inbox folder
         full_filename = None
@@ -554,6 +519,7 @@ class MessageManager(models.Manager):
             as2files_storage.save(name=full_filename, content=ContentFile(payload))
 
         return message, full_filename
+
 
 def get_message_store(instance, filename):
     """Return the path for storing the message payload."""
@@ -622,8 +588,8 @@ class Message(models.Model):
         unique_together = ("message_id", "partner")
         indexes = [
             models.Index(
-                fields=['message_id', 'organization', 'partner'],
-                name='message_lookup_idx'
+                fields=["message_id", "organization", "partner"],
+                name="message_lookup_idx",
             ),
         ]
 
@@ -913,6 +879,7 @@ class MdnManager(models.Manager):
         await mdn.asave()
         return mdn
 
+
 def get_mdn_store(instance, filename):
     """Return the path for storing the MDN payload."""
     current_date = timezone.now().strftime("%Y%m%d")
@@ -951,16 +918,6 @@ class Mdn(models.Model):
     )
 
     objects = MdnManager()
-
-    class Meta:
-        """Define additional options for the MDN model."""
-
-        indexes = [
-            models.Index(
-                fields=['message'],
-                name='mdn_message_idx'
-            ),
-        ]
 
     def __str__(self):
         return str(self.mdn_id)
@@ -1007,9 +964,9 @@ class PartnershipManager(models.Manager):
             # Create a simple object to hold the cached organization params
             class CachedPartnership:
                 def __init__(self, data):
-                    self._as2org_params = data['as2org_params']
-                    self._email_address = data.get('email_address')
-                    self.as2partner_params = data['as2partner_params']
+                    self._as2org_params = data["as2org_params"]
+                    self._email_address = data.get("email_address")
+                    self.as2partner_params = data["as2partner_params"]
 
                 @property
                 def as2org_params(self):
@@ -1038,7 +995,7 @@ class PartnershipManager(models.Manager):
                 def as2partner(self):
                     return As2Partner(**self.as2partner_params)
 
-            partner = CachedPartner(partnership_data['as2partner_params'])
+            partner = CachedPartner(partnership_data["as2partner_params"])
             return org, partner
 
         # Cache miss - fallback to database queries
