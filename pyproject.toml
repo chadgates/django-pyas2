@@ -5,13 +5,16 @@ description = "Django PyAS2 Server for Cargoo"
 requires-python = ">=3.13"
 dependencies = [
     "aiofiles==24.1.0",
+    "asyncio>=4.0.0",
     "django>=5.2.7",
     "httpx==0.28.1",
+    "idna==3.11",
     "psutil==6.1.0",
-    "pyas2lib @ file:///${PROJECT_ROOT}/requirements/pyas2-lib-cargoo.zip",
-    # "pyas2lib==1.4.3",
-    "requests==2.25.1",
+    "oscrypto",
+    "requests==2.32.5",
     "setuptools>=80.9.0",
+    "urllib3==2.6.1",
+    "pyas2lib",
 ]
 
 [dependency-groups]
@@ -21,6 +24,8 @@ test = [
     "pylama==8.4.1",
     "pylint==3.3.1",
     "pytest==8.3.3",
+    "pytest-asyncio>=1.2.0",
+    "pytest-black>=0.6.0",
     "pytest-cov==5.0.0",
     "pytest-django==4.9.0",
     "pytest-mock==3.14.0",
@@ -45,3 +50,7 @@ ignore = "D202"
 
 [tool.pylama.pep8]
 max_line_length = 100
+
+[tool.uv.sources]
+oscrypto = { git = "https://github.com/wbond/oscrypto.git", rev = "master" }
+pyas2lib = { path = "requirements/pyas2-lib-cargoo.zip" }
