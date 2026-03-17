@@ -54,3 +54,6 @@ max_line_length = 100
 [tool.uv.sources]
 oscrypto = { git = "https://github.com/wbond/oscrypto.git", rev = "master" }
 pyas2lib = { path = "requirements/pyas2-lib-cargoo.zip" }
+
+[tool.setuptools.packages.find]
+include = ["pyas2*"]
