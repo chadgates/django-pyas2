@@ -1,3 +1,5 @@
+import threading
+
 from django.core.cache import cache
 from django.forms.models import model_to_dict
 
@@ -9,6 +11,12 @@ ORGANIZATION_CACHE_KEY = "organization_cache"
 PARTNERSHIP_CACHE_KEY = "partnership_cache"
 PARTNERSHIP_CACHE_KEY_STATE = "partnership_cache_state"
 LOADED = "loaded"
+
+# Locks to prevent thundering herd on cache reload.
+# When cache expires, only one thread reloads while others wait.
+_partner_lock = threading.Lock()
+_organization_lock = threading.Lock()
+_partnership_lock = threading.Lock()
 
 # ----------------------------
 # Initial Cache Loading Functions
@@ -76,6 +84,42 @@ def load_partnership_cache():
     return ps_data
 
 
+def _reload_partners_if_needed(as2_name):
+    """Reload partner cache under lock to prevent thundering herd."""
+    with _partner_lock:
+        result = cache.get("-".join([PARTNER_CACHE_KEY, as2_name]))
+        if result is None:
+            load_partner_cache()
+            result = cache.get("-".join([PARTNER_CACHE_KEY, as2_name]))
+    return result
+
+
+def _reload_organizations_if_needed(as2_name):
+    """Reload organization cache under lock to prevent thundering herd."""
+    with _organization_lock:
+        result = cache.get("-".join([ORGANIZATION_CACHE_KEY, as2_name]))
+        if result is None:
+            load_organization_cache()
+            result = cache.get("-".join([ORGANIZATION_CACHE_KEY, as2_name]))
+    return result
+
+
+def _reload_partnerships_if_needed(org_as2_name, partner_as2_name):
+    """Reload partnership cache under lock to prevent thundering herd."""
+    with _partnership_lock:
+        key = "-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name])
+        result = cache.get(key)
+        if result is None and cache.get(PARTNERSHIP_CACHE_KEY_STATE) != LOADED:
+            load_partnership_cache()
+            result = cache.get(key)
+    return result
+
+
+# ----------------------------
+# Sync Cache Access Functions
+# ----------------------------
+
+
 def get_cached_partners():
     partners = cache.get(PARTNER_CACHE_KEY)
     if partners is None:
@@ -87,8 +131,7 @@ def get_cached_partners_by_as2_name(as2_name):
         return None
     partner = cache.get("-".join([PARTNER_CACHE_KEY, as2_name]))
     if partner is None:
-        load_partner_cache()
-        partner = cache.get("-".join([PARTNER_CACHE_KEY, as2_name]))
+        partner = _reload_partners_if_needed(as2_name)
     return partner
 
 def get_cached_organizations():
@@ -102,8 +145,7 @@ def get_cached_organizations_by_as2_name(as2_name):
         return None
     org = cache.get("-".join([ORGANIZATION_CACHE_KEY, as2_name]))
     if org is None:
-        load_organization_cache()
-        org = cache.get("-".join([ORGANIZATION_CACHE_KEY, as2_name]))
+        org = _reload_organizations_if_needed(as2_name)
     return org
 
 
@@ -118,9 +160,8 @@ def get_cached_partnerships_by_as2_name(org_as2_name, partner_as2_name):
         return None
 
     partnership = cache.get("-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name]))
-    if cache.get(PARTNERSHIP_CACHE_KEY_STATE)!=LOADED and partnership is None:
-        load_partnership_cache()
-        partnership = cache.get("-".join([PARTNERSHIP_CACHE_KEY, org_as2_name, partner_as2_name]))
+    if partnership is None and cache.get(PARTNERSHIP_CACHE_KEY_STATE) != LOADED:
+        partnership = _reload_partnerships_if_needed(org_as2_name, partner_as2_name)
     return partnership
 
 # ----------------------------
