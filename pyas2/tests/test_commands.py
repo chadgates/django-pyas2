@@ -97,7 +97,8 @@ def test_sendmessage_command(mocker, organization, partner):
         ]
 
     assert mocked_delete.call_count == 1
-    assert len(filtered_queries) == 6
+    # With create-first pattern: 4 queries (down from 6 with update_or_create)
+    assert len(filtered_queries) == 4
 
 
 @pytest.mark.django_db

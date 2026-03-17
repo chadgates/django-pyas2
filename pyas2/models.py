@@ -410,7 +410,11 @@ class MessageManager(models.Manager):
         filename=None,
         detailed_status=None,
     ):
-        """Create the Message from the pyas2lib's Message object."""
+        """Create the Message from the pyas2lib's Message object.
+
+        Uses create-first pattern to avoid savepoints from update_or_create.
+        Files are saved with save=False, then persisted in a single save().
+        """
 
         if direction == "IN":
             organization = as2message.receiver.as2_name if as2message.receiver else None
@@ -423,30 +427,52 @@ class MessageManager(models.Manager):
 
         partner_dict = get_cached_partners_by_as2_name(partner)
 
-        message, _ = self.update_or_create(
-            message_id=as2message.message_id,
-            partner_id=partner,
-            organization_id=organization,
-            defaults=dict(
-                direction=direction,
-                status=status,
-                compressed=as2message.compressed,
-                encrypted=as2message.encrypted,
-                signed=as2message.signed,
-                detailed_status=detailed_status,
-            ),
-        )
-
-        # Save the headers and payload to store
         if not filename:
             filename = f"{uuid4()}.msg"
-        message.headers.save(
-            name=f"{filename}.header",
-            content=ContentFile(as2message.headers_str),
-            save=False,
+
+        msg_fields = dict(
+            direction=direction,
+            status=status,
+            compressed=as2message.compressed,
+            encrypted=as2message.encrypted,
+            signed=as2message.signed,
+            detailed_status=detailed_status,
         )
-        message.payload.save(name=filename, content=ContentFile(payload), save=False)
-        message.save()
+
+        from django.db import IntegrityError as DjIntegrityError, transaction
+        try:
+            with transaction.atomic():
+                message = self.model(
+                    message_id=as2message.message_id,
+                    partner_id=partner,
+                    organization_id=organization,
+                    **msg_fields,
+                )
+                message.headers.save(
+                    name=f"{filename}.header",
+                    content=ContentFile(as2message.headers_str),
+                    save=False,
+                )
+                message.payload.save(
+                    name=filename, content=ContentFile(payload), save=False
+                )
+                message.save(force_insert=True)
+        except DjIntegrityError:
+            message = self.get(
+                message_id=as2message.message_id, partner_id=partner
+            )
+            for k, v in msg_fields.items():
+                setattr(message, k, v)
+            message.organization_id = organization
+            message.headers.save(
+                name=f"{filename}.header",
+                content=ContentFile(as2message.headers_str),
+                save=False,
+            )
+            message.payload.save(
+                name=filename, content=ContentFile(payload), save=False
+            )
+            message.save()
 
         # Save the payload to the inbox folder
         full_filename = None
@@ -814,7 +840,10 @@ class MdnManager(models.Manager):
     """Custom model manager for the AS2 MDN model."""
 
     def create_from_as2mdn(self, as2mdn, message, status, return_url=None):
-        """Create the MDN from the pyas2lib's MDN object"""
+        """Create the MDN from the pyas2lib's MDN object.
+
+        Uses create-first pattern to avoid savepoints from update_or_create.
+        """
         signed = bool(as2mdn.digest_alg)
 
         # Check for message-id in MDN.
@@ -827,23 +856,40 @@ class MdnManager(models.Manager):
         else:
             message_id = as2mdn.message_id
 
-        mdn, _ = self.update_or_create(
-            message=message,
-            defaults=dict(
-                mdn_id=message_id,
-                status=status,
-                signed=signed,
-                return_url=return_url,
-            ),
-        )
         filename = f"{uuid4()}.mdn"
-        mdn.headers.save(
-            name=f"{filename}.header",
-            content=ContentFile(as2mdn.headers_str),
-            save=False,
+        mdn_fields = dict(
+            mdn_id=message_id,
+            status=status,
+            signed=signed,
+            return_url=return_url,
         )
-        mdn.payload.save(filename, content=ContentFile(as2mdn.content), save=False)
-        mdn.save()
+
+        from django.db import IntegrityError as DjIntegrityError, transaction
+        try:
+            with transaction.atomic():
+                mdn = self.model(message=message, **mdn_fields)
+                mdn.headers.save(
+                    name=f"{filename}.header",
+                    content=ContentFile(as2mdn.headers_str),
+                    save=False,
+                )
+                mdn.payload.save(
+                    filename, content=ContentFile(as2mdn.content), save=False
+                )
+                mdn.save(force_insert=True)
+        except DjIntegrityError:
+            mdn = self.get(message=message)
+            for k, v in mdn_fields.items():
+                setattr(mdn, k, v)
+            mdn.headers.save(
+                name=f"{filename}.header",
+                content=ContentFile(as2mdn.headers_str),
+                save=False,
+            )
+            mdn.payload.save(
+                filename, content=ContentFile(as2mdn.content), save=False
+            )
+            mdn.save()
         return mdn
 
     async def acreate_from_as2mdn(self, as2mdn, message, status, return_url=None):
