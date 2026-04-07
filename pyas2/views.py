@@ -193,11 +193,32 @@ class ReceiveAs2Message(View):
             if isinstance(exception[0], DecryptionError) or isinstance(
                 exception[0], IntegrityError
             ):
+                original_exception = exception
+                logger.warning(
+                    f"First parse attempt failed for message "
+                    f"{as2message.headers.get('message-id')} with "
+                    f"{type(exception[0]).__name__}: {exception[0]}. "
+                    f"Retrying with alternative partnership."
+                )
+
                 status, exception, as2mdn = as2message.parse(
                     request_body,
                     find_org_partner_cb=self.find_alternative_partnership,
                     find_message_cb=self.check_success_message_exists,
                 )
+
+                if status != "processed":
+                    combined_detail = (
+                        f"Original error: {original_exception[0]}; "
+                        f"Retry error: {exception[0]}"
+                    )
+                    exception = (exception[0], combined_detail)
+                    logger.error(
+                        f"Both parse attempts failed for message "
+                        f"{as2message.headers.get('message-id')}. "
+                        f"Original: {original_exception[0]}; "
+                        f"Retry: {exception[0]}"
+                    )
 
             logger.info(
                 f'Received an AS2 message with id {as2message.headers.get("message-id")} for '
@@ -227,11 +248,12 @@ class ReceiveAs2Message(View):
 
             # run post receive command on success
             if status == "processed":
-                run_post_receive(message,
-                                 full_fn,
-                                 as2message.headers.get("as2-to"),
-                                 as2message.headers.get("as2-from"),
-                                 )
+                run_post_receive(
+                    message,
+                    full_fn,
+                    as2message.headers.get("as2-to"),
+                    as2message.headers.get("as2-from"),
+                )
 
             # Return the mdn in case of sync else return text message
             if as2mdn and as2mdn.mdn_mode == "SYNC":

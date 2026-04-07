@@ -230,6 +230,31 @@ class AlternativeCertTestCases(TestCase):
         self.assertEqual(partnership_1.organization_key, Partnership.PRIMARY)
         self.assertEqual(partnership_2.organization_key, Partnership.ALTERNATE)
 
+    def testBothAttemptsFail(self):
+        """When a message cannot be decrypted by either primary or alt key,
+        the detailed_status should contain both the original and retry errors.
+        """
+        # Encrypt with client_crt which neither server primary nor alt key can decrypt
+        partner = Partner.objects.create(
+            name="AS2 Server",
+            as2_name="as2server",
+            target_url="http://localhost:8080/pyas2/as2receive",
+            encryption="tripledes_192_cbc",
+            encryption_cert=self.client_crt,
+            mdn=True,
+            mdn_mode="SYNC",
+            mdn_sign="sha1",
+        )
+
+        in_message = self.build_and_send(partner)
+
+        out_message = Message.objects.get(
+            message_id=in_message.message_id, direction="IN"
+        )
+        self.assertEqual(out_message.status, "E")
+        self.assertIn("Original error:", out_message.detailed_status)
+        self.assertIn("Retry error:", out_message.detailed_status)
+
     @mock.patch("requests.post")
     def build_and_send(self, partner, mock_request, smudge=False):
 
