@@ -16,8 +16,6 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from pyas2lib import Mdn as As2Mdn
 from pyas2lib import Message as As2Message
-from pyas2lib import Organization as As2Organization
-from pyas2lib import Partner as As2Partner
 from pyas2lib.utils import extract_certificate_info
 
 from pyas2 import settings
@@ -80,7 +78,7 @@ class PublicCertificate(models.Model):
         cert_info = extract_certificate_info(self.certificate)
         self.valid_from = cert_info["valid_from"]
         self.valid_to = cert_info["valid_to"]
-        if  cert_info["serial"] is not None:
+        if cert_info["serial"] is not None:
             self.serial_number = cert_info["serial"].__str__()
         super().save(*args, **kwargs)
 
@@ -158,7 +156,9 @@ class Organization(models.Model):
 
     @property
     def as2org(self):
-        return As2Organization(**self.as2org_params)
+        from pyas2.caching import get_cached_as2org
+
+        return get_cached_as2org(self.as2org_params)
 
     @property
     def has_primary_and_alt_keys(self):
@@ -201,7 +201,9 @@ class Organization(models.Model):
 
     @property
     def as2orgalt(self):
-        return As2Organization(**self.as2orgalt_params)
+        from pyas2.caching import get_cached_as2org
+
+        return get_cached_as2org(self.as2orgalt_params)
 
     def swap_primary_alt(self):
         self.encryption_key, self.encryption_key_alt = (
@@ -392,7 +394,9 @@ class Partner(models.Model):
     @property
     def as2partner(self):
         """Returns an object of pyas2lib's Partner class"""
-        return As2Partner(**self.as2partner_params)
+        from pyas2.caching import get_cached_as2partner
+
+        return get_cached_as2partner(self.as2partner_params)
 
     def __str__(self):
         return str(self.name)
@@ -440,6 +444,7 @@ class MessageManager(models.Manager):
         )
 
         from django.db import IntegrityError as DjIntegrityError, transaction
+
         try:
             with transaction.atomic():
                 message = self.model(
@@ -458,9 +463,7 @@ class MessageManager(models.Manager):
                 )
                 message.save(force_insert=True)
         except DjIntegrityError:
-            message = self.get(
-                message_id=as2message.message_id, partner_id=partner
-            )
+            message = self.get(message_id=as2message.message_id, partner_id=partner)
             for k, v in msg_fields.items():
                 setattr(message, k, v)
             message.organization_id = organization
@@ -865,6 +868,7 @@ class MdnManager(models.Manager):
         )
 
         from django.db import IntegrityError as DjIntegrityError, transaction
+
         try:
             with transaction.atomic():
                 mdn = self.model(message=message, **mdn_fields)
@@ -886,9 +890,7 @@ class MdnManager(models.Manager):
                 content=ContentFile(as2mdn.headers_str),
                 save=False,
             )
-            mdn.payload.save(
-                filename, content=ContentFile(as2mdn.content), save=False
-            )
+            mdn.payload.save(filename, content=ContentFile(as2mdn.content), save=False)
             mdn.save()
         return mdn
 
@@ -1020,7 +1022,9 @@ class PartnershipManager(models.Manager):
 
                 @property
                 def as2org(self):
-                    return As2Organization(**self._as2org_params)
+                    from pyas2.caching import get_cached_as2org
+
+                    return get_cached_as2org(self._as2org_params)
 
                 @property
                 def email_address(self):
@@ -1028,7 +1032,9 @@ class PartnershipManager(models.Manager):
 
                 @property
                 def as2partner(self):
-                    return As2Partner(**self.as2partner_params)
+                    from pyas2.caching import get_cached_as2partner
+
+                    return get_cached_as2partner(self.as2partner_params)
 
             org = CachedPartnership(partnership_data)
 
@@ -1039,7 +1045,9 @@ class PartnershipManager(models.Manager):
 
                 @property
                 def as2partner(self):
-                    return As2Partner(**self.as2partner_params)
+                    from pyas2.caching import get_cached_as2partner
+
+                    return get_cached_as2partner(self.as2partner_params)
 
             partner = CachedPartner(partnership_data["as2partner_params"])
             return org, partner

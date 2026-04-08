@@ -15,13 +15,13 @@ from django.views.generic import FormView
 from django.utils.crypto import get_random_string
 from pyas2lib import Message as As2Message
 from pyas2lib import Mdn as As2Mdn
-from pyas2lib import Organization as As2Organization
-from pyas2lib import Partner as As2Partner
 from pyas2lib.exceptions import DecryptionError
 from pyas2lib.exceptions import DuplicateDocument
 from pyas2lib.exceptions import IntegrityError
 
 from pyas2.caching import (
+    get_cached_as2org,
+    get_cached_as2partner,
     get_cached_organizations_by_as2_name,
     get_cached_partners_by_as2_name,
     get_cached_partnerships_by_as2_name,
@@ -82,8 +82,7 @@ class ReceiveAs2Message(View):
 
         org_data = get_cached_organizations_by_as2_name(org_id)
         if org_data:
-            # Return the computed as2org representation from the cached dictionary.
-            return As2Organization(**org_data.get("as2org_params"))
+            return get_cached_as2org(org_data.get("as2org_params"))
         return None
 
     @staticmethod
@@ -94,7 +93,7 @@ class ReceiveAs2Message(View):
         """
         partner_data = get_cached_partners_by_as2_name(partner_id)
         if partner_data:
-            return As2Partner(**partner_data.get("as2partner_params"))
+            return get_cached_as2partner(partner_data.get("as2partner_params"))
         return None
 
     @staticmethod
@@ -104,9 +103,9 @@ class ReceiveAs2Message(View):
         """
         partnership_data = get_cached_partnerships_by_as2_name(org_id, partner_id)
         if partnership_data:
-            return As2Organization(**partnership_data.get("as2org_params")), As2Partner(
-                **partnership_data.get("as2partner_params")
-            )
+            return get_cached_as2org(
+                partnership_data.get("as2org_params")
+            ), get_cached_as2partner(partnership_data.get("as2partner_params"))
 
         return ReceiveAs2Message.find_organization(
             org_id
